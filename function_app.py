@@ -1,9 +1,21 @@
 import azure.functions as func
+import json
 
 app = func.FunctionApp()
 
-@app.route(route="hello")
-def hello(req: func.HttpRequest) -> func.HttpResponse:
+@app.route(route="chat", auth_level=func.AuthLevel.FUNCTION)
+def chat(req: func.HttpRequest) -> func.HttpResponse:
+
+    body = req.get_json()
+    question = body.get("question")
+
     return func.HttpResponse(
-        "Hello from Azure Functions!"
+        json.dumps(
+            {
+                "question": question,
+                "message": "Function is working"
+            }
+        ),
+        mimetype="application/json",
+        status_code=200
     )
