@@ -19,4 +19,3 @@ public class ChatFunction
         return response;
     }
 }
-``
