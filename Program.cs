@@ -1,8 +1,8 @@
-using Microsoft.Azure.Functions.Worker.Builder;
+
 using Microsoft.Extensions.Hosting;
 
-var builder = FunctionsApplication.CreateBuilder(args);
+var host = new HostBuilder()
+    .ConfigureFunctionsWorkerDefaults()
+    .Build();
 
-builder.ConfigureFunctionsWebApplication();
-
-builder.Build().Run();
+host.Run();
