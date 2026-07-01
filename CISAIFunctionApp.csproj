@@ -12,6 +12,10 @@
     <PackageReference Include="Microsoft.Azure.Functions.Worker" Version="2.50.0" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Sdk" Version="2.0.5" OutputItemType="Analyzer" />
     <PackageReference Include="Microsoft.Azure.Functions.Worker.Extensions.Http" Version="3.3.0" />
+
+    <PackageReference Include="Azure.AI.Projects" Version="2.0.0-beta.2" />
+    <PackageReference Include="Azure.Identity" Version="1.14.0" />
+    <PackageReference Include="Azure.Search.Documents" Version="11.7.0" /
   </ItemGroup>
 
 </Project>

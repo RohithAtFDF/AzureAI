@@ -1,3 +1,6 @@
+using Azure;
+using Azure.Search.Documents;
+using Azure.Search.Documents.Models;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using System.Net;
@@ -6,15 +9,34 @@ public class ChatFunction
 {
     [Function("chat")]
     public HttpResponseData Run(
-        [HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequestData req)
+        [HttpTrigger(AuthorizationLevel.Function, "post")]
+        HttpRequestData req)
     {
-        var response = req.CreateResponse(HttpStatusCode.OK);
+        var endpoint =
+            new Uri("https://YOURSEARCH.search.windows.net");
 
-        response.WriteString("""
+        var indexName = "rag-1782757069469"; 
+        
+
+        var credential =
+            new AzureKeyCredential("AI-policy-search-service");
+
+        var client =
+            new SearchClient(endpoint, indexName, credential);
+
+        SearchResults<SearchDocument> results =
+            client.Search<SearchDocument>("stop sign");
+
+        var response =
+            req.CreateResponse(HttpStatusCode.OK);
+
+        foreach (SearchResult<SearchDocument> result in results.GetResults())
         {
-            "message": "Function is working"
+            response.WriteString(
+                result.Document["chunk"].ToString()
+            );
+            break;
         }
-        """);
 
         return response;
     }
