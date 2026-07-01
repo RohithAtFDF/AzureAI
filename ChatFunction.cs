@@ -5,7 +5,7 @@ using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 using System.Net;
 
-public class ChatFunction
+/** public class ChatFunction
 {
     [Function("chat")]
     public HttpResponseData Run(
@@ -40,4 +40,17 @@ public class ChatFunction
 
         return response;
     }
+}**/
+
+var searchKey = Environment.GetEnvironmentVariable("SEARCH_KEY");
+
+var response = req.CreateResponse(HttpStatusCode.OK);
+
+if (string.IsNullOrEmpty(searchKey))
+{
+    response.WriteString("SEARCH_KEY is null");
+    return response;
 }
+
+response.WriteString("SEARCH_KEY found");
+return response;
