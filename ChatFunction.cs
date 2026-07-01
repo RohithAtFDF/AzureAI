@@ -13,10 +13,10 @@ public class ChatFunction
         HttpRequestData req)
     {
         var endpoint =
-            new Uri("https://YOURSEARCH.search.windows.net");
+            new Uri("https://cisaisearchservice.search.windows.net");
 
-        var indexName = "rag-1782757069469"; 
-        
+        var indexName = "rag-1782757069469";
+
 
         var credential =
             new AzureKeyCredential("AI-policy-search-service");
