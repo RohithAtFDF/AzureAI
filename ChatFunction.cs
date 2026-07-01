@@ -19,7 +19,7 @@ public class ChatFunction
 
 
         var credential =
-            new AzureKeyCredential("AI-policy-search-service");
+            new AzureKeyCredential("SEARCH_KEY");
 
         var client =
             new SearchClient(endpoint, indexName, credential);
