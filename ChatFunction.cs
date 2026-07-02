@@ -17,7 +17,7 @@ public class ChatFunction
         try
         {
             var searchEndpoint = "https://cisaisearchservice.search.windows.net";
-            var indexName = "search-1782758443097";
+            var indexName = "texas-driving-handbook";
             var searchKey = Environment.GetEnvironmentVariable("SEARCH_KEY", EnvironmentVariableTarget.Process);
 
             if (string.IsNullOrEmpty(searchKey))
