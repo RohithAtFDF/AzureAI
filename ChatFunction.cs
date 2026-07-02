@@ -1,14 +1,31 @@
 using Azure;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
+
+using Azure.AI.Projects;
+using Azure.AI.Projects.Agents;
+using Azure.AI.Extensions.OpenAI;
+using Azure.Identity;
+using OpenAI.Responses;
+
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
+
 using System.Net;
+using System.Text;
+
+#pragma warning disable OPENAI001
 
 public class ChatFunction
 {
+    private const string AgentEndpoint =
+        "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257";
+
+    private const string AgentName = "Agent";
+    private const string AgentVersion = "3";
+
     [Function("chat")]
-    public HttpResponseData Run(
+    public async Task<HttpResponseData> Run(
         [HttpTrigger(AuthorizationLevel.Function, "post")]
         HttpRequestData req)
     {
@@ -16,46 +33,139 @@ public class ChatFunction
 
         try
         {
-            var searchEndpoint = "https://cisaisearchservice.search.windows.net";
-            var indexName = "texas-driver-manual-txt-format";
-            var searchKey = Environment.GetEnvironmentVariable("SEARCH_KEY", EnvironmentVariableTarget.Process);
+            // -----------------------------
+            // Read User Question
+            // -----------------------------
+            string question =
+                await new StreamReader(req.Body).ReadToEndAsync();
 
-            if (string.IsNullOrEmpty(searchKey))
+            if (string.IsNullOrWhiteSpace(question))
             {
-                response.WriteString("SEARCH_KEY is null or empty. Check Function App environment variables.");
+                response.WriteString("Question is empty.");
                 return response;
             }
 
-            var client = new SearchClient(
+            // -----------------------------
+            // Azure AI Search
+            // -----------------------------
+            var searchEndpoint =
+                "https://cisaisearchservice.search.windows.net";
+
+            var indexName =
+                "texas-driver-manual-txt-format";
+
+            var searchKey =
+                Environment.GetEnvironmentVariable("SEARCH_KEY");
+
+            if (string.IsNullOrEmpty(searchKey))
+            {
+                response.WriteString(
+                    "SEARCH_KEY is null or empty. Check Function App settings."
+                );
+                return response;
+            }
+
+            var searchClient = new SearchClient(
                 new Uri(searchEndpoint),
                 indexName,
                 new AzureKeyCredential(searchKey)
             );
 
+            SearchResults<SearchDocument> searchResults =
+                searchClient.Search<SearchDocument>(question);
 
-            SearchResults<SearchDocument> results =
-                client.Search<SearchDocument>("stop sign");
+            // -----------------------------
+            // Build Context
+            // -----------------------------
+            StringBuilder contextBuilder = new();
 
-            var firstResult = results.GetResults().FirstOrDefault();
-
-            if (firstResult == null)
+            foreach (var result in searchResults
+                         .GetResults()
+                         .Take(5))
             {
-                response.WriteString("Search worked, but no results were found.");
+                if (result.Document.ContainsKey("chunk"))
+                {
+                    contextBuilder.AppendLine(
+                        result.Document["chunk"]?.ToString()
+                    );
+
+                    contextBuilder.AppendLine();
+                }
+            }
+
+            string context = contextBuilder.ToString();
+
+            if (string.IsNullOrWhiteSpace(context))
+            {
+                response.WriteString(
+                    "Search worked, but no results were found."
+                );
                 return response;
             }
 
-            response.WriteString(
-                firstResult.Document["chunk"].ToString()
-            );
+            // -----------------------------
+            // Create Prompt
+            // -----------------------------
+            string prompt = $@"
+You are a Texas Driver Handbook Assistant.
+
+Rules:
+
+1. Answer using ONLY the provided context.
+2. Analyze the user's question carefully.
+3. If the answer is not contained in the context, respond exactly:
+   'I could not find information related to this question in the available documents.'
+4. Do not make assumptions.
+5. Do not use outside knowledge.
+6. Do not perform web searches.
+
+CONTEXT:
+
+{context}
+
+USER QUESTION:
+
+{question}
+";
+
+            // -----------------------------
+            // Foundry Agent
+            // -----------------------------
+            AIProjectClient projectClient =
+                new(
+                    endpoint: new Uri(AgentEndpoint),
+                    tokenProvider: new DefaultAzureCredential()
+                );
+
+            AgentReference agentReference =
+                new(
+                    name: AgentName,
+                    version: AgentVersion
+                );
+
+            ProjectResponsesClient responseClient =
+                projectClient.OpenAI
+                    .GetProjectResponsesClientForAgent(
+                        agentReference
+                    );
+
+            ResponseResult agentResponse =
+                responseClient.CreateResponse(prompt);
+
+            string answer =
+                agentResponse.GetOutputText();
+
+            response.WriteString(answer);
 
             return response;
-
-
         }
         catch (Exception ex)
         {
-            response.StatusCode = HttpStatusCode.InternalServerError;
+            response.StatusCode =
+                HttpStatusCode.InternalServerError;
+
             response.WriteString(ex.ToString());
+
             return response;
         }
     }
