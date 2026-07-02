@@ -32,23 +32,25 @@ public class ChatFunction
                 new AzureKeyCredential(searchKey)
             );
 
+
             SearchResults<SearchDocument> results =
                 client.Search<SearchDocument>("artificial intelligence");
 
-            foreach (SearchResult<SearchDocument> result in results.GetResults())
+            var firstResult = results.GetResults().FirstOrDefault();
+
+            if (firstResult == null)
             {
-                response.WriteString(result.Document.ToString());
+                response.WriteString("Search worked, but no results were found.");
                 return response;
             }
-            
-            foreach (var field in result.Document)
+
+            foreach (var field in firstResult.Document)
             {
                 response.WriteString($"{field.Key}\n");
             }
 
-
-            response.WriteString("Search worked, but no results were found.");
             return response;
+
         }
         catch (Exception ex)
         {
