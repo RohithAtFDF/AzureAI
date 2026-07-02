@@ -40,6 +40,12 @@ public class ChatFunction
                 response.WriteString(result.Document.ToString());
                 return response;
             }
+            
+            foreach (var field in result.Document)
+            {
+                response.WriteString($"{field.Key}\n");
+            }
+
 
             response.WriteString("Search worked, but no results were found.");
             return response;
