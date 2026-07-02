@@ -18,7 +18,7 @@ public class ChatFunction
         {
             var searchEndpoint = "https://cisaisearchservice.search.windows.net";
             var indexName = "rag-1782757069469";
-            var searchKey = Environment.GetEnvironmentVariable("SEARCH_KEY");
+            var searchKey = Environment.GetEnvironmentVariable("SEARCH_KEY", EnvironmentVariableTarget.Process);
 
             if (string.IsNullOrEmpty(searchKey))
             {
