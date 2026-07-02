@@ -17,7 +17,7 @@ public class ChatFunction
         try
         {
             var searchEndpoint = "https://cisaisearchservice.search.windows.net";
-            var indexName = "rag-1782757069469";
+            var indexName = "search-1782758443097";
             var searchKey = Environment.GetEnvironmentVariable("SEARCH_KEY", EnvironmentVariableTarget.Process);
 
             if (string.IsNullOrEmpty(searchKey))
@@ -33,7 +33,7 @@ public class ChatFunction
             );
 
             SearchResults<SearchDocument> results =
-                client.Search<SearchDocument>("stop sign");
+                client.Search<SearchDocument>("artificial intelligence");
 
             foreach (SearchResult<SearchDocument> result in results.GetResults())
             {
