@@ -34,7 +34,7 @@ public class ChatFunction
 
 
             SearchResults<SearchDocument> results =
-                client.Search<SearchDocument>("artificial intelligence");
+                client.Search<SearchDocument>("stop sign");
 
             var firstResult = results.GetResults().FirstOrDefault();
 
