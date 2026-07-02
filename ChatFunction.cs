@@ -44,12 +44,12 @@ public class ChatFunction
                 return response;
             }
 
-            foreach (var field in firstResult.Document)
-            {
-                response.WriteString($"{field.Key}\n");
-            }
+            response.WriteString(
+                firstResult.Document["chunk"].ToString()
+            );
 
             return response;
+
 
         }
         catch (Exception ex)
