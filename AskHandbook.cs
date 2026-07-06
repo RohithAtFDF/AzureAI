@@ -23,23 +23,30 @@ namespace AzureAI
             const string agentName = "Texas-Driving-Handbook";
             const string agentVersion = "3";
 
+
+        try
+        {
             AIProjectClient projectClient = new(
                 endpoint: new Uri(endpoint),
                 tokenProvider: new DefaultAzureCredential());
 
             AgentReference agentReference = new(
-                name: agentName,
-                version: agentVersion);
+                name: "Texas-Driving-Handbook",
+                version: "3");
 
             ProjectResponsesClient responseClient =
                 projectClient.OpenAI.GetProjectResponsesClientForAgent(agentReference);
 
             ResponseResult response =
-                responseClient.CreateResponse("Hello! Tell me a joke.");
+                responseClient.CreateResponse("Hello");
 
-            var res = req.CreateResponse(HttpStatusCode.OK);
             await res.WriteStringAsync(response.GetOutputText());
-
+        }
+        catch (Exception ex)
+        {
+            await res.WriteStringAsync(ex.ToString());
+        }
+        
             return res;
         }
     }
