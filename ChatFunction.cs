@@ -128,13 +128,6 @@ public class ChatFunction
             {question}
             ";
             
-            var key = Environment.GetEnvironmentVariable("FOUNDRY_AGENT_KEY");
-
-            response.WriteString(
-                string.IsNullOrEmpty(key)
-                    ? "FOUNDRY_AGENT_KEY missing"
-                    : $"FOUNDRY_AGENT_KEY exists. Length={key.Length}"
-            );
 
 
             // -----------------------------
@@ -143,25 +136,33 @@ public class ChatFunction
             
             response.WriteString("Found search results. About to call agent.");
 
-            var agentClient = new AgentClient(
-                new Uri(AgentEndpoint),
-                new AzureKeyCredential(key)
-            );
+            AIProjectClient projectClient =
+                new(
+                    endpoint: new Uri(AgentEndpoint),
+                    tokenProvider: new DefaultAzureCredential()
+                );
 
-            // Create a request to the agent
-            var agentRequest = new AgentRequest(
-                AgentName,
-                AgentVersion,
-                prompt
-            );  
-            // Send the request to the agent and get the response
-            var agentResponse = await agentClient.GetResponseAsync(agentRequest);
-            // Write the agent's response to the HTTP response
-            response.WriteString(agentResponse.Content);
-            
-            // Return the response
+            AgentReference agentReference =
+                new(
+                    name: AgentName,
+                    version: AgentVersion
+                );
+
+            ProjectResponsesClient responseClient =
+                projectClient.OpenAI
+                    .GetProjectResponsesClientForAgent(
+                        agentReference
+                    );
+
+            ResponseResult agentResponse =
+                responseClient.CreateResponse(prompt);
+
+            string answer =
+                agentResponse.GetOutputText();
+
+            response.WriteString(answer);
+
             return response;
-
         }
         catch (Exception ex)
         {
