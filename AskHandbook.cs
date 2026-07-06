@@ -27,14 +27,14 @@ namespace AzureAI
 
             try
             {
-                var credential = new DefaultAzureCredential();
+                const string endpoint =
+                    "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257";
 
-                var token = credential.GetToken(
-                    new Azure.Core.TokenRequestContext(
-                        new[] { "https://ai.azure.com/.default" }));
+                var client = new AIProjectClient(
+                    new Uri(endpoint),
+                    new DefaultAzureCredential());
 
-                await res.WriteStringAsync(
-                    $"TOKEN SUCCESS. Length={token.Token.Length}");
+                await res.WriteStringAsync("Project Client Created");
             }
             catch (Exception ex)
             {
