@@ -23,7 +23,7 @@ namespace AzureAI
             const string agentName = "Texas-Driving-Handbook";
             const string agentVersion = "3";
 
-
+        var res = req.CreateResponse(HttpStatusCode.OK);
         try
         {
             AIProjectClient projectClient = new(
@@ -46,7 +46,7 @@ namespace AzureAI
         {
             await res.WriteStringAsync(ex.ToString());
         }
-        
+
             return res;
         }
     }
