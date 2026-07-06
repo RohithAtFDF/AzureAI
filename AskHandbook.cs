@@ -30,12 +30,12 @@ namespace AzureAI
                 endpoint: new Uri(endpoint),
                 tokenProvider: new DefaultAzureCredential());
 
-            // --- TEST 1: Can we talk to the Azure AI Project Hub? ---
-            // This calls a control-plane / metadata endpoint. 
-            // If this fails with 403, your Azure Function's Managed Identity lacks 
-            // basic access to the Azure AI Project ("Azure AI Developer" / "Reader").
-            var projectProperties = await projectClient.GetPropertiesAsync();
-            // --------------------------------------------------------
+            // --- TEST 1: Can we talk to the Azure AI Project? ---
+            // This will attempt to list the workspace/project connections.
+            // If this throws a 403, your Azure Function's Identity lacks permission 
+            // to view the project itself (e.g., needs "Reader" or "Azure AI Developer" role).
+            var connections = projectClient.Connections.GetConnections();
+            // ----------------------------------------------------
 
             AgentReference agentReference = new(
                 name: agentName,
@@ -44,9 +44,9 @@ namespace AzureAI
             ProjectResponsesClient responseClient =
                 projectClient.OpenAI.GetProjectResponsesClientForAgent(agentReference);
 
-            // --- TEST 2: Can we execute inference using the Agent? ---
-            // If Test 1 passed but this fails with 403, your Managed Identity is authorized 
-            // to view the project, but lacks data-plane permissions ("Azure AI Inference User").
+            // --- TEST 2: Can we execute inference on the Agent? ---
+            // If Test 1 passes but this line throws a 403, your identity has access to the project 
+            // metadata, but lacks data-plane model invocation rights ("Azure AI Inference User" role).
             ResponseResult response = responseClient.CreateResponse("Hello");
 
             await res.WriteStringAsync(response.GetOutputText());
