@@ -19,7 +19,7 @@ namespace AzureAI
         public async Task<HttpResponseData> Run(
             [HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequestData req)
         {
-            const string endpoint = "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257";
+            const string endpoint = "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257/agents/Texas-Driving-Handbook/endpoint/protocols/openai/responses";
             const string agentName = "Texas-Driving-Handbook";
             const string agentVersion = "3";
 
