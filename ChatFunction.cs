@@ -1,25 +1,177 @@
-// dotnet add package Azure.AI.Projects --version 2.0.0-beta.2
+using Azure;
+using Azure.Search.Documents;
+using Azure.Search.Documents.Models;
+
 using Azure.AI.Projects;
 using Azure.AI.Projects.Agents;
 using Azure.AI.Extensions.OpenAI;
 using Azure.Identity;
 using OpenAI.Responses;
 
+using Microsoft.Azure.Functions.Worker;
+using Microsoft.Azure.Functions.Worker.Http;
+
+using System.Net;
+using System.Text;
+
 #pragma warning disable OPENAI001
 
-const string endpoint = "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257";
-const string agentName = "Texas-Driving-Handbook";
-const string agentVersion = "3";
+public class ChatFunction
+{
+    private const string AgentEndpoint =
+        "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257";
 
-// Connect to your project using the endpoint from your project page
-// The AzureCliCredential will use your logged-in Azure CLI identity, make sure to run `az login` first
-AIProjectClient projectClient = new(endpoint: new Uri(endpoint), tokenProvider: new DefaultAzureCredential());
+    private const string AgentName = "Texas-Driving-Handbook";
+    private const string AgentVersion = "3";
 
-AgentReference agentReference = new(name: agentName, version: agentVersion);
-ProjectResponsesClient responseClient = projectClient.OpenAI.GetProjectResponsesClientForAgent(agentReference);
-// Use the agent to generate a response
-ResponseResult response = responseClient.CreateResponse(
-    "Hello! Tell me a joke."
-);
+    [Function("chat")]
+    public async Task<HttpResponseData> Run(
+        [HttpTrigger(AuthorizationLevel.Function, "post")]
+        HttpRequestData req)
+    {
+        var response = req.CreateResponse(HttpStatusCode.OK);
 
-Console.WriteLine(response.GetOutputText());
+        try
+        {
+            // -----------------------------
+            // Read User Question
+            // -----------------------------
+            string question =
+                await new StreamReader(req.Body).ReadToEndAsync();
+
+            if (string.IsNullOrWhiteSpace(question))
+            {
+                response.WriteString("Question is empty.");
+                return response;
+            }
+
+            // -----------------------------
+            // Azure AI Search
+            // -----------------------------
+            var searchEndpoint =
+                "https://cisaisearchservice.search.windows.net";
+
+            var indexName =
+                "texas-driver-manual-txt-format";
+
+            var searchKey =
+                Environment.GetEnvironmentVariable("SEARCH_KEY");
+
+            if (string.IsNullOrEmpty(searchKey))
+            {
+                response.WriteString(
+                    "SEARCH_KEY is null or empty. Check Function App settings."
+                );
+                return response;
+            }
+
+            var searchClient = new SearchClient(
+                new Uri(searchEndpoint),
+                indexName,
+                new AzureKeyCredential(searchKey)
+            );
+
+            SearchResults<SearchDocument> searchResults =
+                searchClient.Search<SearchDocument>(question);
+
+            // -----------------------------
+            // Build Context
+            // -----------------------------
+            StringBuilder contextBuilder = new();
+
+            foreach (var result in searchResults
+                         .GetResults()
+                         .Take(5))
+            {
+                if (result.Document.ContainsKey("chunk"))
+                {
+                    contextBuilder.AppendLine(
+                        result.Document["chunk"]?.ToString()
+                    );
+
+                    contextBuilder.AppendLine();
+                }
+            }
+
+            string context = contextBuilder.ToString();
+
+            if (string.IsNullOrWhiteSpace(context))
+            {
+                response.WriteString(
+                    "Search worked, but no results were found."
+                );
+                return response;
+            }
+
+            // -----------------------------
+            // Create Prompt
+            // -----------------------------
+            string prompt = $@"
+            You are a Texas Driver Handbook Assistant.
+
+            Rules:
+
+            1. Answer using ONLY the provided context.
+            2. Analyze the user's question carefully.
+            3. If the answer is not contained in the context, respond exactly:
+            'I could not find information related to this question in the available documents.'
+            4. Do not make assumptions.
+            5. Do not use outside knowledge.
+            6. Do not perform web searches.
+
+            CONTEXT:
+
+            {context}
+
+            USER QUESTION:
+
+            {question}
+            ";
+            
+
+
+            // -----------------------------
+            // Foundry Agent
+            // -----------------------------
+            
+            response.WriteString("Found search results. About to call agent.");
+
+            AIProjectClient projectClient =
+                new(
+                    endpoint: new Uri(AgentEndpoint),
+                    tokenProvider: new DefaultAzureCredential()
+                );
+
+            AgentReference agentReference =
+                new(
+                    name: AgentName,
+                    version: AgentVersion
+                );
+
+            ProjectResponsesClient responseClient =
+                projectClient.OpenAI
+                    .GetProjectResponsesClientForAgent(
+                        agentReference
+                    );
+
+            ResponseResult agentResponse =
+                responseClient.CreateResponse(prompt);
+
+            string answer =
+                agentResponse.GetOutputText();
+
+            response.WriteString(answer);
+
+            return response;
+        }
+        catch (Exception ex)
+        {
+            response.StatusCode =
+                HttpStatusCode.InternalServerError;
+
+            response.WriteString(ex.ToString());
+
+            return response;
+        }
+    }
+}
