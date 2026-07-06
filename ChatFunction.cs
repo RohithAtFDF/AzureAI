@@ -107,30 +107,44 @@ public class ChatFunction
             // Create Prompt
             // -----------------------------
             string prompt = $@"
-You are a Texas Driver Handbook Assistant.
+            You are a Texas Driver Handbook Assistant.
 
-Rules:
+            Rules:
 
-1. Answer using ONLY the provided context.
-2. Analyze the user's question carefully.
-3. If the answer is not contained in the context, respond exactly:
-   'I could not find information related to this question in the available documents.'
-4. Do not make assumptions.
-5. Do not use outside knowledge.
-6. Do not perform web searches.
+            1. Answer using ONLY the provided context.
+            2. Analyze the user's question carefully.
+            3. If the answer is not contained in the context, respond exactly:
+            'I could not find information related to this question in the available documents.'
+            4. Do not make assumptions.
+            5. Do not use outside knowledge.
+            6. Do not perform web searches.
 
-CONTEXT:
+            CONTEXT:
 
-{context}
+            {context}
 
-USER QUESTION:
+            USER QUESTION:
 
-{question}
-";
+            {question}
+            ";
+            
+            var key = Environment.GetEnvironmentVariable("FOUNDRY_AGENT_KEY");
+
+            response.WriteString(
+                string.IsNullOrEmpty(key)
+                    ? "FOUNDRY_AGENT_KEY missing"
+                    : $"FOUNDRY_AGENT_KEY exists. Length={key.Length}"
+            );
+
+            return response ;
+
 
             // -----------------------------
             // Foundry Agent
             // -----------------------------
+            
+            response.WriteString("Found search results. About to call agent.");
+
             AIProjectClient projectClient =
                 new(
                     endpoint: new Uri(AgentEndpoint),
