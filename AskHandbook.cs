@@ -3,13 +3,10 @@ using System.Net;
 using System.Threading.Tasks;
 using Azure.AI.Projects;
 using Azure.AI.Projects.Agents;
-using Azure.AI.Extensions.OpenAI;
+using Azure.Core;
 using Azure.Identity;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
-using OpenAI.Responses;
-
-#pragma warning disable OPENAI001
 
 namespace AzureAI
 {
@@ -19,33 +16,50 @@ namespace AzureAI
         public async Task<HttpResponseData> Run(
             [HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequestData req)
         {
-            const string endpoint = "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257";
-            const string agentName = "Texas-Driving-Handbook";
-            const string agentVersion = "3";
+            var res = req.CreateResponse(HttpStatusCode.OK);
 
-        var res = req.CreateResponse(HttpStatusCode.OK);
-        try
-        {
-            AIProjectClient projectClient = new(
-                endpoint: new Uri(endpoint),
-                tokenProvider: new DefaultAzureCredential());
+            try
+            {
+                const string endpoint =
+                    "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257";
 
-            AgentReference agentReference = new(
-                name: "Texas-Driving-Handbook",
-                version: "3");
+                await res.WriteStringAsync("Starting...\n");
 
-            ProjectResponsesClient responseClient =
-                projectClient.OpenAI.GetProjectResponsesClientForAgent(agentReference);
+                var credential = new DefaultAzureCredential();
 
-            ResponseResult response =
-                responseClient.CreateResponse("Hello");
+                TokenRequestContext tokenContext =
+                    new TokenRequestContext(
+                        new[] { "https://ai.azure.com/.default" });
 
-            await res.WriteStringAsync(response.GetOutputText());
-        }
-        catch (Exception ex)
-        {
-            await res.WriteStringAsync(ex.ToString());
-        }
+                var token = credential.GetToken(tokenContext);
+
+                await res.WriteStringAsync($"Token OK. Length={token.Token.Length}\n");
+
+                AIProjectClient projectClient = new(
+                    new Uri(endpoint),
+                    credential);
+
+                await res.WriteStringAsync("Project Client Created\n");
+
+                AgentReference agentReference = new(
+                    "Texas-Driving-Handbook",
+                    "3");
+
+                await res.WriteStringAsync("Agent Reference Created\n");
+
+                var responseClient =
+                    projectClient.OpenAI.GetProjectResponsesClientForAgent(agentReference);
+
+                await res.WriteStringAsync("Response Client Created\n");
+
+                // Stop before CreateResponse
+                await res.WriteStringAsync("Reached end successfully\n");
+            }
+            catch (Exception ex)
+            {
+                await res.WriteStringAsync("\nEXCEPTION:\n");
+                await res.WriteStringAsync(ex.ToString());
+            }
 
             return res;
         }
