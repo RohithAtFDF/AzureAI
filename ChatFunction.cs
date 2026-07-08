@@ -90,25 +90,38 @@ public class ChatFunction
             // -----------------------------
             // Build Context
             // -----------------------------
-            StringBuilder contextBuilder = new();
+            // StringBuilder contextBuilder = new();
 
-            // Streamlined foreach since we already limited the size to 5 in searchOptions
-            foreach (var result in searchResults.GetResults())
+            // // Streamlined foreach since we already limited the size to 5 in searchOptions
+            // foreach (var result in searchResults.GetResults())
+            // {
+            //     if (result.Document.ContainsKey("chunk"))
+            //     {
+            //         contextBuilder.AppendLine(result.Document["chunk"]?.ToString());
+            //         contextBuilder.AppendLine();
+            //     }
+            // }
+
+            // string context = contextBuilder.ToString();
+
+            // if (string.IsNullOrWhiteSpace(context))
+            // {
+            //     response.WriteString(
+            //         "Search worked, but no results were found."
+            //     );
+            //     return response;
+            // }
+            var debugResults = searchResults.GetResults().ToList();
+
+            if (debugResults.Count == 0)
             {
-                if (result.Document.ContainsKey("chunk"))
-                {
-                    contextBuilder.AppendLine(result.Document["chunk"]?.ToString());
-                    contextBuilder.AppendLine();
-                }
+                response.WriteString($"Debug: Azure AI Search returned exactly 0 documents for query: '{question}'");
+                return response;
             }
-
-            string context = contextBuilder.ToString();
-
-            if (string.IsNullOrWhiteSpace(context))
+            else 
             {
-                response.WriteString(
-                    "Search worked, but no results were found."
-                );
+                var firstDocKeys = string.Join(", ", debugResults[0].Document.Keys);
+                response.WriteString($"Debug: Success! Found {debugResults.Count} docs. However, your index fields are: [{firstDocKeys}]. Checking for 'chunk' might be failing.");
                 return response;
             }
 
