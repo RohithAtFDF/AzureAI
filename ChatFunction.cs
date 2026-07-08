@@ -13,6 +13,7 @@ using Microsoft.Azure.Functions.Worker.Http;
 
 using System.Net;
 using System.Text;
+using System.Text.Json;
 
 #pragma warning disable OPENAI001
 
@@ -36,12 +37,13 @@ public class ChatFunction
             // -----------------------------
             // Read User Question
             // -----------------------------
-            string question =
-                await new StreamReader(req.Body).ReadToEndAsync();
-                // 2. Parse the JSON safely
+            // 1. Read the raw request body text (make sure 'req' matches your function's input parameter name)
+            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+
+            // 2. Safely parse the JSON into a dictionary
             var data = JsonSerializer.Deserialize<Dictionary<string, string>>(requestBody);
 
-            // 3. Extract ONLY the string value of "question"
+            // 3. Assign the value to your EXISTING question variable (DO NOT put 'string' in front of it)
             string question = data != null && data.ContainsKey("question") ? data["question"] : "";
 
             if (string.IsNullOrWhiteSpace(question))
