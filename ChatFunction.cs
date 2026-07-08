@@ -115,14 +115,14 @@ namespace AzureAI
                 // Create Prompt
                 // -----------------------------
                 string prompt = $@"
-You are a BCFS Assistant.
+                You are a BCFS Assistant.
 
-CONTEXT:
-{context}
+                CONTEXT:
+                {context}
 
-USER QUESTION:
-{question}
-";
+                USER QUESTION:
+                {question}
+                ";
 
                 // Stop the timer right before finalizing the output
                 stopwatch.Stop();
