@@ -11,6 +11,7 @@ using OpenAI.Responses;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 
+using System.Diagnostics;
 using System.Net;
 using System.Text;
 using System.Text.Json;
@@ -29,14 +30,8 @@ public class ChatFunction
     public async Task<HttpResponseData> Run(
         [HttpTrigger(AuthorizationLevel.Function, "post")]
         HttpRequestData req)
-{
-
-        // Start the execution timer immediately
+    {
         var stopwatch = Stopwatch.StartNew();
-        
-        const string endpoint = "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257";
-        const string agentName = "Texas-Driving-Handbook";
-        const string agentVersion = "3";
 
         var response = req.CreateResponse(HttpStatusCode.OK);
         response.Headers.Add("Content-Type", "text/plain; charset=utf-8");
@@ -44,35 +39,53 @@ public class ChatFunction
         try
         {
             // -----------------------------
-            // Read & Parse User Question
+            // Read Request
             // -----------------------------
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            string requestBody =
+                await new StreamReader(req.Body).ReadToEndAsync();
 
             if (string.IsNullOrWhiteSpace(requestBody))
             {
-                await response.WriteStringAsync("Error: Inbound request body is completely empty.");
+                await response.WriteStringAsync(
+                    "Error: Request body was empty."
+                );
                 return response;
             }
 
-            var data = JsonSerializer.Deserialize<Dictionary<string, string>>(requestBody);
-            string question = data != null && data.ContainsKey("question") ? data["question"] : "";
+            var data =
+                JsonSerializer.Deserialize<Dictionary<string, string>>(requestBody);
+
+            string question =
+                data != null &&
+                data.TryGetValue("question", out var q)
+                    ? q
+                    : "";
 
             if (string.IsNullOrWhiteSpace(question))
             {
-                await response.WriteStringAsync("Error: The 'question' key was missing or empty in the JSON payload.");
+                await response.WriteStringAsync(
+                    "Error: 'question' was missing or empty."
+                );
                 return response;
             }
 
             // -----------------------------
-            // Azure AI Search Setup
+            // Azure AI Search
             // -----------------------------
-            var searchEndpoint = "https://cisaisearchservice.search.windows.net";
-            var indexName = "bcfs-manual-indexer";
-            var searchKey = Environment.GetEnvironmentVariable("SEARCH_KEY");
+            string searchEndpoint =
+                "https://cisaisearchservice.search.windows.net";
 
-            if (string.IsNullOrEmpty(searchKey))
+            string indexName =
+                "bcfs-manual-indexer";
+
+            string? searchKey =
+                Environment.GetEnvironmentVariable("SEARCH_KEY");
+
+            if (string.IsNullOrWhiteSpace(searchKey))
             {
-                await response.WriteStringAsync("SEARCH_KEY is null or empty. Check Function App settings.");
+                await response.WriteStringAsync(
+                    "SEARCH_KEY is missing."
+                );
                 return response;
             }
 
@@ -82,28 +95,38 @@ public class ChatFunction
                 new AzureKeyCredential(searchKey)
             );
 
-                // -----------------------------
-                // Azure AI Search Options
-                // -----------------------------
             var searchOptions = new SearchOptions
             {
-                SearchMode = SearchMode.Any, 
-                Size = 5 
+                SearchMode = SearchMode.Any,
+                Size = 5
             };
 
             SearchResults<SearchDocument> searchResults =
-                searchClient.Search<SearchDocument>(question, searchOptions);
+                searchClient.Search<SearchDocument>(
+                    question,
+                    searchOptions
+                );
+
+            var results = searchResults.GetResults().ToList();
+
+            if (results.Count == 0)
+            {
+                await response.WriteStringAsync(
+                    $"No search results found for '{question}'."
+                );
+                return response;
+            }
 
             // -----------------------------
-            // Build Context (Using 'content_text')
+            // Build Context
             // -----------------------------
             StringBuilder contextBuilder = new();
 
-            foreach (var result in searchResults.GetResults())
+            foreach (var result in results)
             {
-                if (result.Document.ContainsKey("content_text"))
+                if (result.Document.TryGetValue("content_text", out var text))
                 {
-                    contextBuilder.AppendLine(result.Document["content_text"]?.ToString());
+                    contextBuilder.AppendLine(text?.ToString());
                     contextBuilder.AppendLine();
                 }
             }
@@ -112,30 +135,38 @@ public class ChatFunction
 
             if (string.IsNullOrWhiteSpace(context))
             {
-                await response.WriteStringAsync("Search worked, but no matching text segments contained 'content_text'.");
+                await response.WriteStringAsync(
+                    "Search returned documents, but none contained 'content_text'."
+                );
                 return response;
             }
+
             // -----------------------------
-            // Create Prompt
+            // Build Prompt
             // -----------------------------
             string prompt = $@"
             You are a BCFS Assistant.
 
-            CONTEXT:
+            Answer ONLY using the handbook context below.
+
+            If the answer is not contained in the handbook, say that the handbook does not contain that information.
+
+            -------------------------
+            HANDBOOK CONTEXT
+            -------------------------
 
             {context}
 
-            USER QUESTION:
+            -------------------------
+            USER QUESTION
+            -------------------------
 
             {question}
             ";
 
             // -----------------------------
-            // Foundry Agent
+            // Azure AI Foundry Agent
             // -----------------------------
-            
-            response.WriteString("Found search results. About to call agent.");
-
             AIProjectClient projectClient =
                 new(
                     endpoint: new Uri(AgentEndpoint),
@@ -150,29 +181,36 @@ public class ChatFunction
 
             ProjectResponsesClient responseClient =
                 projectClient.OpenAI
-                    .GetProjectResponsesClientForAgent(
-                        agentReference
-                    );
+                    .GetProjectResponsesClientForAgent(agentReference);
 
             ResponseResult agentResponse =
                 responseClient.CreateResponse(prompt);
 
-                // Stop the timer right before finalizing the output
-                stopwatch.Stop();
-                response.WriteString($"Response generated in {stopwatch.ElapsedMilliseconds} ms.");         
-            string answer =
-                agentResponse.GetOutputText()+ $"\n--------------------------------------------------\n⏱️ Total Execution Time: {stopwatch.ElapsedMilliseconds} ms";
+            stopwatch.Stop();
 
-            response.WriteString(answer);
+            string answer =
+                agentResponse.GetOutputText();
+
+            answer +=
+                $"\n\n--------------------------------------------------" +
+                $"\nSearch Results: {results.Count}" +
+                $"\nExecution Time: {stopwatch.ElapsedMilliseconds} ms";
+
+            await response.WriteStringAsync(answer);
 
             return response;
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
+
             response.StatusCode =
                 HttpStatusCode.InternalServerError;
 
-            response.WriteString(ex.ToString());
+            await response.WriteStringAsync(
+                ex.ToString() +
+                $"\n\nExecution Time: {stopwatch.ElapsedMilliseconds} ms"
+            );
 
             return response;
         }
