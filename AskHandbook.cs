@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using System.Collections.Generic;
 using System.Net;
@@ -81,49 +82,42 @@ namespace AzureAI
                     searchClient.Search<SearchDocument>(question, searchOptions);
 
                 // -----------------------------
-                // Troubleshooting / Output Results
+                // Build Context (Using the correct 'content_text' field)
                 // -----------------------------
-                var resultsList = new List<SearchDocument>();
+                StringBuilder contextBuilder = new();
+
                 foreach (var result in searchResults.GetResults())
                 {
-                    resultsList.Add(result.Document);
+                    if (result.Document.ContainsKey("content_text"))
+                    {
+                        contextBuilder.AppendLine(result.Document["content_text"]?.ToString());
+                        contextBuilder.AppendLine();
+                    }
                 }
 
-                if (resultsList.Count == 0)
+                string context = contextBuilder.ToString();
+
+                if (string.IsNullOrWhiteSpace(context))
                 {
-                    await res.WriteStringAsync($"Debug: Azure AI Search executed successfully but returned 0 documents for the query: '{question}'");
+                    await res.WriteStringAsync("Search worked, but no matching text segments contained 'content_text'.");
                     return res;
                 }
 
-                // Document inspection dump
-                var firstDoc = resultsList[0];
-                var availableFields = string.Join(", ", firstDoc.Keys);
+                // -----------------------------
+                // Create Prompt
+                // -----------------------------
+                string prompt = $@"
+You are a BCFS Assistant.
 
-                string debugOutput = $"SUCCESS! Azure AI Search found {resultsList.Count} matching documents.\n";
-                debugOutput += $"Actual field names discovered inside your index: [{availableFields}]\n";
-                debugOutput += "--------------------------------------------------\n\n";
+CONTEXT:
+{context}
 
-                int docIndex = 1;
-                foreach (var doc in resultsList)
-                {
-                    debugOutput += $"[Document #{docIndex}]\n";
-                    foreach (var key in doc.Keys)
-                    {
-                        var valueString = doc[key]?.ToString() ?? "null";
-                        
-                        // Truncate values slightly if they are massive chunks just for easy reading
-                        if (valueString.Length > 250)
-                        {
-                            valueString = valueString.Substring(0, 250) + "... (truncated)";
-                        }
-                        
-                        debugOutput += $"  -> {key}: {valueString}\n";
-                    }
-                    debugOutput += "\n";
-                    docIndex++;
-                }
+USER QUESTION:
+{question}
+";
 
-                await res.WriteStringAsync(debugOutput);
+                // For now, we print out the final generated prompt to Postman to verify everything looks beautiful
+                await res.WriteStringAsync(prompt);
             }
             catch (JsonException)
             {
@@ -131,7 +125,6 @@ namespace AzureAI
             }
             catch (Exception ex)
             {
-                // This captures all search or connectivity exceptions completely
                 await res.WriteStringAsync(ex.ToString());
             }
 
