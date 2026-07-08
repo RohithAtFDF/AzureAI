@@ -93,6 +93,24 @@ public class ChatFunction
 
             SearchResults<SearchDocument> searchResults =
                 searchClient.Search<SearchDocument>(question, searchOptions);
+                // -----------------------------
+            // TEMPORARY DIAGNOSTIC BLOCK
+            // -----------------------------
+            var resultsList = searchResults.GetResults().ToList();
+
+            if (resultsList.Count == 0)
+            {
+                response.WriteString($"Debug: Azure returned ZERO documents for the query: '{question}'.");
+                return response;
+            }
+            else
+            {
+                // Capture the exact names of the fields inside your actual Azure index
+                var availableFields = string.Join(", ", resultsList[0].Document.Keys);
+                
+                response.WriteString($"Debug: Success! Azure found {resultsList.Count} documents. " +
+                                    $"However, they were skipped because they don't contain 'chunk'. " +
+                                    $"The actual fields in your index are: [{availableFields}]");
 
             // -----------------------------
             // Build Context
