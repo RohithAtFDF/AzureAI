@@ -29,46 +29,46 @@ public class ChatFunction
     public async Task<HttpResponseData> Run(
         [HttpTrigger(AuthorizationLevel.Function, "post")]
         HttpRequestData req)
-    {
+{
+        const string endpoint = "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257";
+        const string agentName = "Texas-Driving-Handbook";
+        const string agentVersion = "3";
+
         var response = req.CreateResponse(HttpStatusCode.OK);
+        response.Headers.Add("Content-Type", "text/plain; charset=utf-8");
 
         try
         {
             // -----------------------------
-            // Read User Question
+            // Read & Parse User Question
             // -----------------------------
-            // 1. Read the raw request body text (make sure 'req' matches your function's input parameter name)
             string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
 
-            // 2. Safely parse the JSON into a dictionary
-            var data = JsonSerializer.Deserialize<Dictionary<string, string>>(requestBody);
+            if (string.IsNullOrWhiteSpace(requestBody))
+            {
+                await response.WriteStringAsync("Error: Inbound request body is completely empty.");
+                return response;
+            }
 
-            // 3. Assign the value to your EXISTING question variable (DO NOT put 'string' in front of it)
+            var data = JsonSerializer.Deserialize<Dictionary<string, string>>(requestBody);
             string question = data != null && data.ContainsKey("question") ? data["question"] : "";
 
             if (string.IsNullOrWhiteSpace(question))
             {
-                response.WriteString("Question is empty.");
+                await response.WriteStringAsync("Error: The 'question' key was missing or empty in the JSON payload.");
                 return response;
             }
 
             // -----------------------------
-            // Azure AI Search
+            // Azure AI Search Setup
             // -----------------------------
-            var searchEndpoint =
-                "https://cisaisearchservice.search.windows.net";
-
-            var indexName =
-                "bcfs-manual-indexer";
-
-            var searchKey =
-                Environment.GetEnvironmentVariable("SEARCH_KEY");
+            var searchEndpoint = "https://cisaisearchservice.search.windows.net";
+            var indexName = "bcfs-manual-indexer";
+            var searchKey = Environment.GetEnvironmentVariable("SEARCH_KEY");
 
             if (string.IsNullOrEmpty(searchKey))
             {
-                response.WriteString(
-                    "SEARCH_KEY is null or empty. Check Function App settings."
-                );
+                await response.WriteStringAsync("SEARCH_KEY is null or empty. Check Function App settings.");
                 return response;
             }
 
@@ -78,34 +78,28 @@ public class ChatFunction
                 new AzureKeyCredential(searchKey)
             );
 
-            // -----------------------------
-            // Azure AI Search Options
-            // -----------------------------
+                // -----------------------------
+                // Azure AI Search Options
+                // -----------------------------
             var searchOptions = new SearchOptions
             {
-                // Ensures the engine looks for ANY of the words, preventing full sentences from returning null
                 SearchMode = SearchMode.Any, 
-                
-                // Performance Optimization: Limits results to 5 on the server side 
-                // so you don't pull down extra data before doing .Take(5)
                 Size = 5 
             };
 
             SearchResults<SearchDocument> searchResults =
                 searchClient.Search<SearchDocument>(question, searchOptions);
-                
 
             // -----------------------------
-            // Build Context
+            // Build Context (Using 'content_text')
             // -----------------------------
             StringBuilder contextBuilder = new();
 
-            // Streamlined foreach since we already limited the size to 5 in searchOptions
             foreach (var result in searchResults.GetResults())
             {
-                if (result.Document.ContainsKey("chunk"))
+                if (result.Document.ContainsKey("content_text"))
                 {
-                    contextBuilder.AppendLine(result.Document["chunk"]?.ToString());
+                    contextBuilder.AppendLine(result.Document["content_text"]?.ToString());
                     contextBuilder.AppendLine();
                 }
             }
@@ -114,30 +108,9 @@ public class ChatFunction
 
             if (string.IsNullOrWhiteSpace(context))
             {
-                response.WriteString(
-                    "Search worked, but no results were found."
-                );
+                await response.WriteStringAsync("Search worked, but no matching text segments contained 'content_text'.");
                 return response;
             }
-
-
-            //  debug lines  
-
-
-            var debugResults = searchResults.GetResults().ToList();
-
-            if (debugResults.Count == 0)
-            {
-                response.WriteString($"Debug: Azure AI Search returned exactly 0 documents for query: '{question}'");
-                return response;
-            }
-            else 
-            {
-                var firstDocKeys = string.Join(", ", debugResults[0].Document.Keys);
-                response.WriteString($"Debug: Success! Found {debugResults.Count} docs. However, your index fields are: [{firstDocKeys}]. Checking for 'chunk' might be failing.");
-                return response;
-            }
-
             // -----------------------------
             // Create Prompt
             // -----------------------------
