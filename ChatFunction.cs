@@ -90,27 +90,32 @@ public class ChatFunction
             // -----------------------------
             // Build Context
             // -----------------------------
-            // StringBuilder contextBuilder = new();
+            StringBuilder contextBuilder = new();
 
-            // // Streamlined foreach since we already limited the size to 5 in searchOptions
-            // foreach (var result in searchResults.GetResults())
-            // {
-            //     if (result.Document.ContainsKey("chunk"))
-            //     {
-            //         contextBuilder.AppendLine(result.Document["chunk"]?.ToString());
-            //         contextBuilder.AppendLine();
-            //     }
-            // }
+            // Streamlined foreach since we already limited the size to 5 in searchOptions
+            foreach (var result in searchResults.GetResults())
+            {
+                if (result.Document.ContainsKey("chunk"))
+                {
+                    contextBuilder.AppendLine(result.Document["chunk"]?.ToString());
+                    contextBuilder.AppendLine();
+                }
+            }
 
-            // string context = contextBuilder.ToString();
+            string context = contextBuilder.ToString();
 
-            // if (string.IsNullOrWhiteSpace(context))
-            // {
-            //     response.WriteString(
-            //         "Search worked, but no results were found."
-            //     );
-            //     return response;
-            // }
+            if (string.IsNullOrWhiteSpace(context))
+            {
+                response.WriteString(
+                    "Search worked, but no results were found."
+                );
+                return response;
+            }
+
+            
+            //  debug lines  
+
+
             var debugResults = searchResults.GetResults().ToList();
 
             if (debugResults.Count == 0)
