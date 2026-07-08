@@ -1,175 +1,149 @@
+using System;
+using System.IO;
+using System.Text;
+using System.Text.Json;
+using System.Collections.Generic;
+using System.Net;
+using System.Threading.Tasks;
+using System.Diagnostics; // Added for the Stopwatch timer
 using Azure;
 using Azure.Search.Documents;
 using Azure.Search.Documents.Models;
-
-using Azure.AI.Projects;
-using Azure.AI.Projects.Agents;
-using Azure.AI.Extensions.OpenAI;
-using Azure.Identity;
-using OpenAI.Responses;
-
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 
-using System.Net;
-using System.Text;
-using System.Text.Json;
-
 #pragma warning disable OPENAI001
 
-public class ChatFunction
+namespace AzureAI
 {
-    private const string AgentEndpoint =
-        "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257";
-
-    private const string AgentName = "BCFS-Agent";
-    private const string AgentVersion = "3";
-
-    [Function("chat")]
-    public async Task<HttpResponseData> Run(
-        [HttpTrigger(AuthorizationLevel.Function, "post")]
-        HttpRequestData req)
-{
-        const string endpoint = "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257";
-        const string agentName = "Texas-Driving-Handbook";
-        const string agentVersion = "3";
-
-        var response = req.CreateResponse(HttpStatusCode.OK);
-        response.Headers.Add("Content-Type", "text/plain; charset=utf-8");
-
-        try
+    public class ChatFunction
+    {
+        [Function("ChatFunction")]
+        public async Task<HttpResponseData> Run(
+            [HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequestData req)
         {
-            // -----------------------------
-            // Read & Parse User Question
-            // -----------------------------
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+            // Start the execution timer immediately
+            var stopwatch = Stopwatch.StartNew();
 
-            if (string.IsNullOrWhiteSpace(requestBody))
+            const string endpoint = "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257";
+            const string agentName = "Texas-Driving-Handbook";
+            const string agentVersion = "3";
+
+            var res = req.CreateResponse(HttpStatusCode.OK);
+            res.Headers.Add("Content-Type", "text/plain; charset=utf-8");
+
+            try
             {
-                await response.WriteStringAsync("Error: Inbound request body is completely empty.");
-                return response;
-            }
+                // -----------------------------
+                // Read & Parse User Question
+                // -----------------------------
+                string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
 
-            var data = JsonSerializer.Deserialize<Dictionary<string, string>>(requestBody);
-            string question = data != null && data.ContainsKey("question") ? data["question"] : "";
+                if (string.IsNullOrWhiteSpace(requestBody))
+                {
+                    stopwatch.Stop();
+                    await res.WriteStringAsync($"Error: Inbound request body is completely empty.\n⏱️ Time Elapsed: {stopwatch.ElapsedMilliseconds} ms");
+                    return res;
+                }
 
-            if (string.IsNullOrWhiteSpace(question))
-            {
-                await response.WriteStringAsync("Error: The 'question' key was missing or empty in the JSON payload.");
-                return response;
-            }
+                var data = JsonSerializer.Deserialize<Dictionary<string, string>>(requestBody);
+                string question = data != null && data.ContainsKey("question") ? data["question"] : "";
 
-            // -----------------------------
-            // Azure AI Search Setup
-            // -----------------------------
-            var searchEndpoint = "https://cisaisearchservice.search.windows.net";
-            var indexName = "bcfs-manual-indexer";
-            var searchKey = Environment.GetEnvironmentVariable("SEARCH_KEY");
+                if (string.IsNullOrWhiteSpace(question))
+                {
+                    stopwatch.Stop();
+                    await res.WriteStringAsync($"Error: The 'question' key was missing or empty in the JSON payload.\n⏱️ Time Elapsed: {stopwatch.ElapsedMilliseconds} ms");
+                    return res;
+                }
 
-            if (string.IsNullOrEmpty(searchKey))
-            {
-                await response.WriteStringAsync("SEARCH_KEY is null or empty. Check Function App settings.");
-                return response;
-            }
+                // -----------------------------
+                // Azure AI Search Setup
+                // -----------------------------
+                var searchEndpoint = "https://cisaisearchservice.search.windows.net";
+                var indexName = "bcfs-manual-indexer";
+                var searchKey = Environment.GetEnvironmentVariable("SEARCH_KEY");
 
-            var searchClient = new SearchClient(
-                new Uri(searchEndpoint),
-                indexName,
-                new AzureKeyCredential(searchKey)
-            );
+                if (string.IsNullOrEmpty(searchKey))
+                {
+                    stopwatch.Stop();
+                    await res.WriteStringAsync($"SEARCH_KEY is null or empty. Check Function App settings.\n⏱️ Time Elapsed: {stopwatch.ElapsedMilliseconds} ms");
+                    return res;
+                }
+
+                var searchClient = new SearchClient(
+                    new Uri(searchEndpoint),
+                    indexName,
+                    new AzureKeyCredential(searchKey)
+                );
 
                 // -----------------------------
                 // Azure AI Search Options
                 // -----------------------------
-            var searchOptions = new SearchOptions
-            {
-                SearchMode = SearchMode.Any, 
-                Size = 5 
-            };
-
-            SearchResults<SearchDocument> searchResults =
-                searchClient.Search<SearchDocument>(question, searchOptions);
-
-            // -----------------------------
-            // Build Context (Using 'content_text')
-            // -----------------------------
-            StringBuilder contextBuilder = new();
-
-            foreach (var result in searchResults.GetResults())
-            {
-                if (result.Document.ContainsKey("content_text"))
+                var searchOptions = new SearchOptions
                 {
-                    contextBuilder.AppendLine(result.Document["content_text"]?.ToString());
-                    contextBuilder.AppendLine();
+                    SearchMode = SearchMode.Any, 
+                    Size = 5 
+                };
+
+                SearchResults<SearchDocument> searchResults =
+                    searchClient.Search<SearchDocument>(question, searchOptions);
+
+                // -----------------------------
+                // Build Context (Using 'content_text')
+                // -----------------------------
+                StringBuilder contextBuilder = new();
+
+                foreach (var result in searchResults.GetResults())
+                {
+                    if (result.Document.ContainsKey("content_text"))
+                    {
+                        contextBuilder.AppendLine(result.Document["content_text"]?.ToString());
+                        contextBuilder.AppendLine();
+                    }
                 }
+
+                string context = contextBuilder.ToString();
+
+                if (string.IsNullOrWhiteSpace(context))
+                {
+                    stopwatch.Stop();
+                    await res.WriteStringAsync($"Search worked, but no matching text segments contained 'content_text'.\n⏱️ Time Elapsed: {stopwatch.ElapsedMilliseconds} ms");
+                    return res;
+                }
+
+                // -----------------------------
+                // Create Prompt
+                // -----------------------------
+                string prompt = $@"
+You are a BCFS Assistant.
+
+CONTEXT:
+{context}
+
+USER QUESTION:
+{question}
+";
+
+                // Stop the timer right before finalizing the output
+                stopwatch.Stop();
+
+                // Append the time performance metric to the final string
+                string finalOutput = prompt + $"\n--------------------------------------------------\n⏱️ Total Execution Time: {stopwatch.ElapsedMilliseconds} ms";
+                
+                await res.WriteStringAsync(finalOutput);
             }
-
-            string context = contextBuilder.ToString();
-
-            if (string.IsNullOrWhiteSpace(context))
+            catch (JsonException)
             {
-                await response.WriteStringAsync("Search worked, but no matching text segments contained 'content_text'.");
-                return response;
+                stopwatch.Stop();
+                await res.WriteStringAsync($"Error: Inbound payload is not valid JSON. Ensure keys and values are enclosed in double quotes.\n⏱️ Time Elapsed: {stopwatch.ElapsedMilliseconds} ms");
             }
-            // -----------------------------
-            // Create Prompt
-            // -----------------------------
-            string prompt = $@"
-            You are a BCFS Assistant.
+            catch (Exception ex)
+            {
+                stopwatch.Stop();
+                await res.WriteStringAsync($"{ex}\n\n⏱️ Execution Failed After: {stopwatch.ElapsedMilliseconds} ms");
+            }
 
-            CONTEXT:
-
-            {context}
-
-            USER QUESTION:
-
-            {question}
-            ";
-            
-
-
-            // -----------------------------
-            // Foundry Agent
-            // -----------------------------
-            
-            response.WriteString("Found search results. About to call agent.");
-
-            AIProjectClient projectClient =
-                new(
-                    endpoint: new Uri(AgentEndpoint),
-                    tokenProvider: new DefaultAzureCredential()
-                );
-
-            AgentReference agentReference =
-                new(
-                    name: AgentName,
-                    version: AgentVersion
-                );
-
-            ProjectResponsesClient responseClient =
-                projectClient.OpenAI
-                    .GetProjectResponsesClientForAgent(
-                        agentReference
-                    );
-
-            ResponseResult agentResponse =
-                responseClient.CreateResponse(prompt);
-
-            string answer =
-                agentResponse.GetOutputText();
-
-            response.WriteString(answer);
-
-            return response;
-        }
-        catch (Exception ex)
-        {
-            response.StatusCode =
-                HttpStatusCode.InternalServerError;
-
-            response.WriteString(ex.ToString());
-
-            return response;
+            return res;
         }
     }
 }
