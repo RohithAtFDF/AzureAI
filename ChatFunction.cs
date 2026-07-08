@@ -21,7 +21,7 @@ public class ChatFunction
     private const string AgentEndpoint =
         "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257";
 
-    private const string AgentName = "Texas-Driving-Handbook";
+    private const string AgentName = "BCFS-Agent";
     private const string AgentVersion = "3";
 
     [Function("chat")]
@@ -52,7 +52,7 @@ public class ChatFunction
                 "https://cisaisearchservice.search.windows.net";
 
             var indexName =
-                "texas-driver-manual-txt-format";
+                "bcfs-manual-indexer";
 
             var searchKey =
                 Environment.GetEnvironmentVariable("SEARCH_KEY");
@@ -71,24 +71,33 @@ public class ChatFunction
                 new AzureKeyCredential(searchKey)
             );
 
+            // -----------------------------
+            // Azure AI Search Options
+            // -----------------------------
+            var searchOptions = new SearchOptions
+            {
+                // Ensures the engine looks for ANY of the words, preventing full sentences from returning null
+                SearchMode = SearchMode.Any, 
+                
+                // Performance Optimization: Limits results to 5 on the server side 
+                // so you don't pull down extra data before doing .Take(5)
+                Size = 5 
+            };
+
             SearchResults<SearchDocument> searchResults =
-                searchClient.Search<SearchDocument>(question);
+                searchClient.Search<SearchDocument>(question, searchOptions);
 
             // -----------------------------
             // Build Context
             // -----------------------------
             StringBuilder contextBuilder = new();
 
-            foreach (var result in searchResults
-                         .GetResults()
-                         .Take(5))
+            // Streamlined foreach since we already limited the size to 5 in searchOptions
+            foreach (var result in searchResults.GetResults())
             {
                 if (result.Document.ContainsKey("chunk"))
                 {
-                    contextBuilder.AppendLine(
-                        result.Document["chunk"]?.ToString()
-                    );
-
+                    contextBuilder.AppendLine(result.Document["chunk"]?.ToString());
                     contextBuilder.AppendLine();
                 }
             }
@@ -107,17 +116,7 @@ public class ChatFunction
             // Create Prompt
             // -----------------------------
             string prompt = $@"
-            You are a Texas Driver Handbook Assistant.
-
-            Rules:
-
-            1. Answer using ONLY the provided context.
-            2. Analyze the user's question carefully.
-            3. If the answer is not contained in the context, respond exactly:
-            'I could not find information related to this question in the available documents.'
-            4. Do not make assumptions.
-            5. Do not use outside knowledge.
-            6. Do not perform web searches.
+            You are a BCFS Assistant.
 
             CONTEXT:
 
