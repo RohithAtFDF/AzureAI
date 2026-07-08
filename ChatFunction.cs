@@ -38,6 +38,11 @@ public class ChatFunction
             // -----------------------------
             string question =
                 await new StreamReader(req.Body).ReadToEndAsync();
+                // 2. Parse the JSON safely
+            var data = JsonSerializer.Deserialize<Dictionary<string, string>>(requestBody);
+
+            // 3. Extract ONLY the string value of "question"
+            string question = data != null && data.ContainsKey("question") ? data["question"] : "";
 
             if (string.IsNullOrWhiteSpace(question))
             {
@@ -112,7 +117,7 @@ public class ChatFunction
                 return response;
             }
 
-            
+
             //  debug lines  
 
 
