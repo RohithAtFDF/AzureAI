@@ -28,7 +28,7 @@ public class ChatFunction
 
     [Function("chat")]
     public async Task<HttpResponseData> Run(
-        [HttpTrigger(AuthorizationLevel.Function, "post")]
+        [HttpTrigger(AuthorizationLevel.Function, "post", Route = "chat")]
         HttpRequestData req)
     {
         var stopwatch = Stopwatch.StartNew();
