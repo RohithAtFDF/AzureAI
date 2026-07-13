@@ -1,30 +1,15 @@
-using Azure;
-using Azure.Search.Documents;
-using Azure.Search.Documents.Models;
-
-using Azure.AI.Projects;
-using Azure.AI.Projects.Agents;
-using Azure.AI.Extensions.OpenAI;
-using Azure.Identity;
-using OpenAI.Responses;
-
-using Microsoft.Azure.Functions.Worker;
-using Microsoft.Azure.Functions.Worker.Http;
-
-using System.Diagnostics;
-using System.Net;
-using System.Text;
-using System.Text.Json;
-
-#pragma warning disable OPENAI001
-
 public class ChatFunction
 {
     private const string AgentEndpoint =
         "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257";
 
-    private const string AgentName = "BCFS-Agent";
-    private const string AgentVersion = "3";
+    // Answer model (Mini) — generates the final grounded answer
+    private const string AnswerAgentName = "BCFS-Agent";
+    private const string AnswerAgentVersion = "5";
+
+    // Router model (Nano) — decides search vs. small talk + rewrites the query
+    private const string RouterAgentName = "BCFS-Query-Agent";
+    private const string RouterAgentVersion = "2";   // <-- set to your actual version
 
     [Function("chat")]
     public async Task<HttpResponseData> Run(
@@ -41,59 +26,88 @@ public class ChatFunction
             // -----------------------------
             // Read Request
             // -----------------------------
-            string requestBody =
-                await new StreamReader(req.Body).ReadToEndAsync();
+            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
 
             if (string.IsNullOrWhiteSpace(requestBody))
             {
-                await response.WriteStringAsync(
-                    "Error: Request body was empty."
-                );
+                await response.WriteStringAsync("Error: Request body was empty.");
                 return response;
             }
 
-            var data =
-                JsonSerializer.Deserialize<Dictionary<string, string>>(requestBody);
+            var data = JsonSerializer.Deserialize<Dictionary<string, string>>(requestBody);
 
             string question =
-                data != null &&
-                data.TryGetValue("question", out var q)
-                    ? q
-                    : "";
+                data != null && data.TryGetValue("question", out var q) ? q : "";
 
             if (string.IsNullOrWhiteSpace(question))
             {
-                await response.WriteStringAsync(
-                    "Error: 'question' was missing or empty."
-                );
+                await response.WriteStringAsync("Error: 'question' was missing or empty.");
                 return response;
             }
 
             // -----------------------------
-            // Azure AI Search
+            // Shared Foundry Project Client
             // -----------------------------
-            string searchEndpoint =
-                "https://cisaisearchservice.search.windows.net";
+            AIProjectClient projectClient = new(
+                endpoint: new Uri(AgentEndpoint),
+                tokenProvider: new DefaultAzureCredential()
+            );
 
-            string indexName =
-                "bcfs-manual-indexer";
+            // =========================================================
+            // STEP 1: ROUTER (Nano) — decide search vs. small talk
+            // =========================================================
+            var routerClient = projectClient.OpenAI
+                .GetProjectResponsesClientForAgent(
+                    new AgentReference(RouterAgentName, RouterAgentVersion));
 
-            string? searchKey =
-                Environment.GetEnvironmentVariable("SEARCH_KEY");
+            ResponseResult routerResponse = routerClient.CreateResponse(question);
+            string routerRaw = routerResponse.GetOutputText();
+
+            RouterDecision decision = ParseRouterDecision(routerRaw);
+
+            // -----------------------------
+            // STEP 1a: SMALL TALK -> reply now (1 call, low latency)
+            // -----------------------------
+            if (decision != null && !decision.NeedsSearch)
+            {
+                stopwatch.Stop();
+
+                string reply = string.IsNullOrWhiteSpace(decision.Reply)
+                    ? "Hi! How can I help you with BCFS programs today?"
+                    : decision.Reply;
+
+                await response.WriteStringAsync(
+                    reply +
+                    $"\n\n--------------------------------------------------" +
+                    $"\nPath: small-talk (no search)" +
+                    $"\nExecution Time: {stopwatch.ElapsedMilliseconds} ms");
+
+                return response;
+            }
+
+            // Use the cleaned/rewritten query for search; fall back to raw question
+            string searchQuery =
+                (decision != null && !string.IsNullOrWhiteSpace(decision.SearchQuery))
+                    ? decision.SearchQuery
+                    : question;
+
+            // =========================================================
+            // STEP 2: Azure AI Search (with rewritten query)
+            // =========================================================
+            string searchEndpoint = "https://cisaisearchservice.search.windows.net";
+            string indexName = "bcfs-manual-indexer";
+            string? searchKey = Environment.GetEnvironmentVariable("SEARCH_KEY");
 
             if (string.IsNullOrWhiteSpace(searchKey))
             {
-                await response.WriteStringAsync(
-                    "SEARCH_KEY is missing."
-                );
+                await response.WriteStringAsync("SEARCH_KEY is missing.");
                 return response;
             }
 
             var searchClient = new SearchClient(
                 new Uri(searchEndpoint),
                 indexName,
-                new AzureKeyCredential(searchKey)
-            );
+                new AzureKeyCredential(searchKey));
 
             var searchOptions = new SearchOptions
             {
@@ -102,23 +116,12 @@ public class ChatFunction
             };
 
             SearchResults<SearchDocument> searchResults =
-                searchClient.Search<SearchDocument>(
-                    question,
-                    searchOptions
-                );
+                searchClient.Search<SearchDocument>(searchQuery, searchOptions);
 
             var results = searchResults.GetResults().ToList();
 
-            if (results.Count == 0)
-            {
-                await response.WriteStringAsync(
-                    $"No search results found for '{question}'."
-                );
-                return response;
-            }
-
             // -----------------------------
-            // Build Context
+            // Build Context (may be empty)
             // -----------------------------
             StringBuilder contextBuilder = new();
 
@@ -132,87 +135,94 @@ public class ChatFunction
             }
 
             string context = contextBuilder.ToString();
+            bool hasContext = !string.IsNullOrWhiteSpace(context);
 
-            if (string.IsNullOrWhiteSpace(context))
-            {
-                await response.WriteStringAsync(
-                    "Search returned documents, but none contained 'content_text'."
-                );
-                return response;
-            }
+            // =========================================================
+            // STEP 3: ANSWER (Mini) — grounded answer, empty-context aware
+            // =========================================================
+string prompt = $@"HANDBOOK CONTEXT:
+2
+{(hasContext ? context : "No relevant excerpts found.")}
+3
+ 
+4
+USER QUESTION:
+5
+{question}";
 
-            // -----------------------------
-            // Build Prompt
-            // -----------------------------
-            string prompt = $@"
-            You are a BCFS Assistant.
+            var answerClient = projectClient.OpenAI
+                .GetProjectResponsesClientForAgent(
+                    new AgentReference(AnswerAgentName, AnswerAgentVersion));
 
-            Answer ONLY using the handbook context below.
-
-            If the answer is not contained in the handbook, say that the handbook does not contain that information.
-
-            -------------------------
-            HANDBOOK CONTEXT
-            -------------------------
-
-            {context}
-
-            -------------------------
-            USER QUESTION
-            -------------------------
-
-            {question}
-            ";
-
-            // -----------------------------
-            // Azure AI Foundry Agent
-            // -----------------------------
-            AIProjectClient projectClient =
-                new(
-                    endpoint: new Uri(AgentEndpoint),
-                    tokenProvider: new DefaultAzureCredential()
-                );
-
-            AgentReference agentReference =
-                new(
-                    name: AgentName,
-                    version: AgentVersion
-                );
-
-            ProjectResponsesClient responseClient =
-                projectClient.OpenAI
-                    .GetProjectResponsesClientForAgent(agentReference);
-
-            ResponseResult agentResponse =
-                responseClient.CreateResponse(prompt);
+            ResponseResult agentResponse = answerClient.CreateResponse(prompt);
 
             stopwatch.Stop();
 
-            string answer =
-                agentResponse.GetOutputText();
+            string answer = agentResponse.GetOutputText();
 
             answer +=
                 $"\n\n--------------------------------------------------" +
+                $"\nPath: search" +
+                $"\nRewritten Query: {searchQuery}" +
                 $"\nSearch Results: {results.Count}" +
                 $"\nExecution Time: {stopwatch.ElapsedMilliseconds} ms";
 
             await response.WriteStringAsync(answer);
-
             return response;
         }
         catch (Exception ex)
         {
             stopwatch.Stop();
-
-            response.StatusCode =
-                HttpStatusCode.InternalServerError;
+            response.StatusCode = HttpStatusCode.InternalServerError;
 
             await response.WriteStringAsync(
                 ex.ToString() +
-                $"\n\nExecution Time: {stopwatch.ElapsedMilliseconds} ms"
-            );
+                $"\n\nExecution Time: {stopwatch.ElapsedMilliseconds} ms");
 
             return response;
         }
+    }
+
+    // -----------------------------
+    // Router JSON parsing
+    // -----------------------------
+    private static RouterDecision ParseRouterDecision(string raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+
+        // Strip ```json ... ``` fences if the model added them
+        string cleaned = raw.Trim();
+        if (cleaned.StartsWith("```"))
+        {
+            int firstBrace = cleaned.IndexOf('{');
+            int lastBrace = cleaned.LastIndexOf('}');
+            if (firstBrace >= 0 && lastBrace > firstBrace)
+                cleaned = cleaned.Substring(firstBrace, lastBrace - firstBrace + 1);
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<RouterDecision>(
+                cleaned,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch
+        {
+            // If parsing fails, fall back to searching (safer than dropping the query)
+            return new RouterDecision { NeedsSearch = true, SearchQuery = null };
+        }
+    }
+
+    private class RouterDecision
+    {
+        [JsonPropertyName("needsSearch")]
+        public bool NeedsSearch { get; set; }
+
+        [JsonPropertyName("reply")]
+        public string Reply { get; set; }
+
+        [JsonPropertyName("searchQuery")]
+        public string SearchQuery { get; set; }
     }
 }
