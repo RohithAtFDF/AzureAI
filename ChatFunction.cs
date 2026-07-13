@@ -1,3 +1,23 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Net;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;          // JsonPropertyName
+
+using Microsoft.Azure.Functions.Worker;         // [Function], HttpTrigger, AuthorizationLevel
+using Microsoft.Azure.Functions.Worker.Http;     // HttpRequestData, HttpResponseData
+
+// Azure SDKs you're already using
+using Azure;                                      // AzureKeyCredential
+using Azure.Search.Documents;                     // SearchClient, SearchOptions
+using Azure.Search.Documents.Models;              // SearchDocument, SearchResults, SearchMode
+using Azure.Identity;                             // DefaultAzureCredential
+// + whatever namespace AIProjectClient / AgentReference live in for your SDK version
+
 public class ChatFunction
 {
     private const string AgentEndpoint =
