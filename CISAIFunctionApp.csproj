@@ -6,6 +6,9 @@
     <OutputType>Exe</OutputType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <NoWarn>$(NoWarn);OPENAI001</NoWarn>
+    
   </PropertyGroup>
 
   <ItemGroup>

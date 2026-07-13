@@ -20,7 +20,6 @@ using Azure.Identity;                             // DefaultAzureCredential
 using Azure.AI.Projects;
 using Azure.AI.Projects.Agents;
 using Azure.AI.Extensions.OpenAI;
-using Azure.Identity;
 using OpenAI.Responses;
 
 public class ChatFunction
@@ -211,7 +210,7 @@ USER QUESTION:
     // -----------------------------
     // Router JSON parsing
     // -----------------------------
-    private static RouterDecision ParseRouterDecision(string raw)
+    private static RouterDecision? ParseRouterDecision(string raw)
     {
         if (string.IsNullOrWhiteSpace(raw))
             return null;
@@ -245,9 +244,9 @@ USER QUESTION:
         public bool NeedsSearch { get; set; }
 
         [JsonPropertyName("reply")]
-        public string Reply { get; set; }
+        public string? Reply { get; set; }       
 
         [JsonPropertyName("searchQuery")]
-        public string SearchQuery { get; set; }
+        public string? SearchQuery { get; set; }  
     }
 }
