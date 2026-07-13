@@ -17,6 +17,11 @@ using Azure.Search.Documents;                     // SearchClient, SearchOptions
 using Azure.Search.Documents.Models;              // SearchDocument, SearchResults, SearchMode
 using Azure.Identity;                             // DefaultAzureCredential
 // + whatever namespace AIProjectClient / AgentReference live in for your SDK version
+using Azure.AI.Projects;
+using Azure.AI.Projects.Agents;
+using Azure.AI.Extensions.OpenAI;
+using Azure.Identity;
+using OpenAI.Responses;
 
 public class ChatFunction
 {
