@@ -26,50 +26,39 @@ public class DocumentFunction
                 req.Url.Query
             );
 
-            string? path = query["path"];
+            string? fileName = query["name"];
 
-            if (string.IsNullOrWhiteSpace(path))
+            if (string.IsNullOrWhiteSpace(fileName))
             {
                 var badRequest =
                     req.CreateResponse(HttpStatusCode.BadRequest);
 
                 await badRequest.WriteStringAsync(
-                    "The document path is missing."
+                    "The document name is missing."
                 );
 
                 return badRequest;
             }
 
-            string? storageAccountName =
-                Environment.GetEnvironmentVariable(
-                    "STORAGE_ACCOUNT_NAME"
-                );
+            // Security: remove any folder supplied by the browser.
+            fileName = Path.GetFileName(fileName);
 
-            string? containerName =
-                Environment.GetEnvironmentVariable(
-                    "PDF_CONTAINER_NAME"
-                );
-
-            if (string.IsNullOrWhiteSpace(storageAccountName) ||
-                string.IsNullOrWhiteSpace(containerName))
+            if (!fileName.EndsWith(
+                    ".pdf",
+                    StringComparison.OrdinalIgnoreCase))
             {
-                var configurationError =
-                    req.CreateResponse(
-                        HttpStatusCode.InternalServerError
-                    );
+                var badRequest =
+                    req.CreateResponse(HttpStatusCode.BadRequest);
 
-                await configurationError.WriteStringAsync(
-                    "Storage configuration is missing."
+                await badRequest.WriteStringAsync(
+                    "Only PDF documents are supported."
                 );
 
-                return configurationError;
+                return badRequest;
             }
 
-            // content_path may be a complete Blob URL or a blob-relative path.
-            string blobName = GetBlobName(
-                path,
-                containerName
-            );
+            // Exact Blob virtual-folder path.
+            string blobName = $"BCFS Manuals/{fileName}";
 
             var serviceUri = new Uri(
                 $"https://{storageAccountName}.blob.core.windows.net"
@@ -144,52 +133,4 @@ public class DocumentFunction
         }
     }
 
-    private static string GetBlobName(
-        string contentPath,
-        string containerName)
-    {
-        string decodedPath =
-            Uri.UnescapeDataString(contentPath).Trim();
-
-        // Handle a complete Blob URL.
-        if (Uri.TryCreate(
-            decodedPath,
-            UriKind.Absolute,
-            out Uri? uri))
-        {
-            string absolutePath =
-                uri.AbsolutePath.TrimStart('/');
-
-            string containerPrefix =
-                containerName.Trim('/') + "/";
-
-            if (absolutePath.StartsWith(
-                containerPrefix,
-                StringComparison.OrdinalIgnoreCase))
-            {
-                return absolutePath.Substring(
-                    containerPrefix.Length
-                );
-            }
-
-            return absolutePath;
-        }
-
-        // Handle container-relative paths.
-        string normalized =
-            decodedPath.Replace("\\", "/").TrimStart('/');
-
-        string prefix =
-            containerName.Trim('/') + "/";
-
-        if (normalized.StartsWith(
-            prefix,
-            StringComparison.OrdinalIgnoreCase))
-        {
-            normalized =
-                normalized.Substring(prefix.Length);
-        }
-
-        return normalized;
-    }
 }
