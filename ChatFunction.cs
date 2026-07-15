@@ -20,6 +20,7 @@ using Azure.AI.Projects;
 using Azure.AI.Projects.Agents;
 using Azure.AI.Extensions.OpenAI;
 using OpenAI.Responses;
+using System.Text.RegularExpressions;
 
 public class ChatFunction
 {
@@ -150,23 +151,33 @@ public class ChatFunction
                 if (result.Document.TryGetValue("content_text", out var text))
                 {
                     string chunk = text?.ToString() ?? "";
+
                     contextBuilder.AppendLine(chunk);
                     contextBuilder.AppendLine();
 
-                    // ★ your real index fields: document_title + content_path
-                    string title = result.Document.TryGetValue("document_title", out var t)
-                        ? t?.ToString() ?? "Document"
-                        : "Document";
+                    // Your actual index fields
+                    string title =
+                        result.Document.TryGetValue("document_title", out var t)
+                            ? t?.ToString() ?? "Document"
+                            : "Document";
 
-                    string path = result.Document.TryGetValue("content_path", out var p)
-                        ? p?.ToString() ?? ""
-                        : "";
+                    string path =
+                        result.Document.TryGetValue("content_path", out var p)
+                            ? p?.ToString() ?? ""
+                            : "";
+
+                    // Extract 87 from text such as "Page 87 of 173"
+                    int pageNumber =
+                        ExtractPageNumber(chunk) ?? 1;
 
                     sources.Add(new
                     {
                         title = title,
                         path = path,
-                        snippet = chunk.Length > 200 ? chunk.Substring(0, 200) : chunk
+                        pageNumber = pageNumber,
+                        snippet = chunk.Length > 200
+                            ? chunk.Substring(0, 200)
+                            : chunk
                     });
                 }
             }
@@ -179,11 +190,11 @@ public class ChatFunction
             // ★ CHANGED: cleaned-up prompt (removed stray line numbers)
             // =========================================================
             string prompt =
-$@"HANDBOOK CONTEXT:
-{(hasContext ? context : "No relevant excerpts found.")}
+                    $@"HANDBOOK CONTEXT:
+                    {(hasContext ? context : "No relevant excerpts found.")}
 
-USER QUESTION:
-{question}";
+                    USER QUESTION:
+                    {question}";
 
             var answerClient = projectClient.OpenAI
                 .GetProjectResponsesClientForAgent(
@@ -237,6 +248,30 @@ USER QUESTION:
 
         await response.WriteStringAsync(payload);
     }
+
+    private static int? ExtractPageNumber(string text)
+{
+    if (string.IsNullOrWhiteSpace(text))
+    {
+        return null;
+    }
+
+    Match match = Regex.Match(
+        text,
+        @"\bPage\s+(\d+)\s+of\s+\d+\b",
+        RegexOptions.IgnoreCase
+    );
+
+    if (match.Success &&
+        int.TryParse(match.Groups[1].Value, out int pageNumber) &&
+        pageNumber > 0)
+    {
+        return pageNumber;
+    }
+
+    return null;
+}
+
 
     // -----------------------------
     // Router JSON parsing 
