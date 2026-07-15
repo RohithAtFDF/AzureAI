@@ -22,11 +22,9 @@ public class DocumentFunction
     {
         try
         {
-            var query = System.Web.HttpUtility.ParseQueryString(
-                req.Url.Query
-            );
-
-            string? fileName = query["name"];
+            // Expected request:
+            // /api/document?name=DocumentName.pdf
+            string? fileName = req.Query["name"];
 
             if (string.IsNullOrWhiteSpace(fileName))
             {
@@ -40,7 +38,7 @@ public class DocumentFunction
                 return badRequest;
             }
 
-            // Security: remove any folder supplied by the browser.
+            // Prevent callers from supplying arbitrary folder paths.
             fileName = Path.GetFileName(fileName);
 
             if (!fileName.EndsWith(
@@ -57,17 +55,50 @@ public class DocumentFunction
                 return badRequest;
             }
 
-            // Exact Blob virtual-folder path.
-            string blobName = $"BCFS Manuals/{fileName}";
+            // These values come from Function App environment variables.
+            string? storageAccountName =
+                Environment.GetEnvironmentVariable(
+                    "STORAGE_ACCOUNT_NAME"
+                );
+
+            string? containerName =
+                Environment.GetEnvironmentVariable(
+                    "PDF_CONTAINER_NAME"
+                );
+
+            if (string.IsNullOrWhiteSpace(storageAccountName) ||
+                string.IsNullOrWhiteSpace(containerName))
+            {
+                var configurationError =
+                    req.CreateResponse(
+                        HttpStatusCode.InternalServerError
+                    );
+
+                await configurationError.WriteStringAsync(
+                    "Storage configuration is missing. Check " +
+                    "STORAGE_ACCOUNT_NAME and PDF_CONTAINER_NAME."
+                );
+
+                return configurationError;
+            }
+
+            // Exact location inside the container:
+            // container/BCFS Manuals/document.pdf
+            string blobName =
+                $"BCFS Manuals/{fileName}";
 
             var serviceUri = new Uri(
                 $"https://{storageAccountName}.blob.core.windows.net"
             );
 
-            var blobServiceClient = new BlobServiceClient(
-                serviceUri,
-                new DefaultAzureCredential()
-            );
+            var credential =
+                new DefaultAzureCredential();
+
+            var blobServiceClient =
+                new BlobServiceClient(
+                    serviceUri,
+                    credential
+                );
 
             BlobContainerClient containerClient =
                 blobServiceClient.GetBlobContainerClient(
@@ -77,7 +108,10 @@ public class DocumentFunction
             BlobClient blobClient =
                 containerClient.GetBlobClient(blobName);
 
-            if (!await blobClient.ExistsAsync())
+            bool exists =
+                await blobClient.ExistsAsync();
+
+            if (!exists)
             {
                 var notFound =
                     req.CreateResponse(HttpStatusCode.NotFound);
@@ -100,16 +134,14 @@ public class DocumentFunction
                 "application/pdf"
             );
 
-            // Allows the browser to render rather than force download.
             response.Headers.Add(
                 "Content-Disposition",
-                $"inline; filename=\"{Path.GetFileName(blobName)}\""
+                $"inline; filename=\"{fileName}\""
             );
 
-            // The native browser PDF viewer may request byte ranges.
             response.Headers.Add(
-                "Accept-Ranges",
-                "bytes"
+                "Cache-Control",
+                "private, max-age=300"
             );
 
             await download.Content.CopyToAsync(
@@ -120,17 +152,16 @@ public class DocumentFunction
         }
         catch (Exception ex)
         {
-            var response =
+            var errorResponse =
                 req.CreateResponse(
                     HttpStatusCode.InternalServerError
                 );
 
-            await response.WriteStringAsync(
+            await errorResponse.WriteStringAsync(
                 $"Unable to retrieve the PDF: {ex.Message}"
             );
 
-            return response;
+            return errorResponse;
         }
     }
-
 }
