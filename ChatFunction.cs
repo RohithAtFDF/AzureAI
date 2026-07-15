@@ -146,39 +146,54 @@ public class ChatFunction
             StringBuilder contextBuilder = new();
             var sources = new List<object>();
 
+            var seenDocumentTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
             foreach (var result in results)
             {
-                if (result.Document.TryGetValue("content_text", out var text))
+                if (result.Document.TryGetValue(
+                        "content_text",
+                        out var text))
                 {
-                    string chunk = text?.ToString() ?? "";
+                    string chunk =
+                        text?.ToString() ?? "";
 
+                    // Keep every chunk in the model context.
                     contextBuilder.AppendLine(chunk);
                     contextBuilder.AppendLine();
 
-                    // Your actual index fields
                     string title =
-                        result.Document.TryGetValue("document_title", out var t)
+                        result.Document.TryGetValue(
+                            "document_title",
+                            out var t)
                             ? t?.ToString() ?? "Document"
                             : "Document";
 
                     string path =
-                        result.Document.TryGetValue("content_path", out var p)
+                        result.Document.TryGetValue(
+                            "content_path",
+                            out var p)
                             ? p?.ToString() ?? ""
                             : "";
 
-                    // Extract 87 from text such as "Page 87 of 173"
                     int pageNumber =
                         ExtractPageNumber(chunk) ?? 1;
 
-                    sources.Add(new
+                    /*
+                    * Only add the first/highest-ranked chunk
+                    * from each unique PDF as a citation button.
+                    */
+                    if (seenDocumentTitles.Add(title))
                     {
-                        title = title,
-                        path = path,
-                        pageNumber = pageNumber,
-                        snippet = chunk.Length > 200
-                            ? chunk.Substring(0, 200)
-                            : chunk
-                    });
+                        sources.Add(new
+                        {
+                            title = title,
+                            path = path,
+                            pageNumber = pageNumber,
+                            snippet = chunk.Length > 200
+                                ? chunk.Substring(0, 200)
+                                : chunk
+                        });
+                    }
                 }
             }
 
