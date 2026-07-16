@@ -21,6 +21,17 @@ using Azure.AI.Projects.Agents;
 using Azure.AI.Extensions.OpenAI;
 using OpenAI.Responses;
 using System.Text.RegularExpressions;
+using Azure.Data.Tables;
+using Microsoft.Extensions.Logging;
+
+/// step 1: router (nano) -> step 2: search -> step 3: answer (mini)
+/// step 2: search results are used to build context for the answer agent, and also returned as sources for citation buttons in the UI
+/// step 3: answer agent returns the final answer, which is returned to the user along with the sources
+/// step 4: feedback is collected via a separate endpoint (FeedbackFunction.cs) and stored in Azure Table Storage for later analysis
+/// step 5: feedback can be used to improve the search index and the answer agent over time
+/// step 6: the router agent can be improved to better classify questions and route them to the appropriate agent (small talk vs search)
+/// step 7: the answer agent can be improved to better use the context and provide more accurate and helpful answers
+/// step 8: the search index can be improved to provide more relevant results and better context for the answer agent
 
 public class ChatFunction
 {
@@ -204,8 +215,14 @@ public class ChatFunction
             // STEP 3: ANSWER (Mini)
             // ★ CHANGED: cleaned-up prompt (removed stray line numbers)
             // =========================================================
+
             string prompt =
-                    $@"HANDBOOK CONTEXT:
+                    $@"You are a strict data extractor for BCFS.
+                    Only output facts explicitly stated in the HANDBOOK CONTEXT.
+                    Do not improvise. Do not use outside knowledge.
+                    If summarizing multiple manuals, use a standard bulleted list.
+
+                    HANDBOOK CONTEXT:
                     {(hasContext ? context : "No relevant excerpts found.")}
 
                     USER QUESTION:
@@ -215,15 +232,56 @@ public class ChatFunction
                 .GetProjectResponsesClientForAgent(
                     new AgentReference(AnswerAgentName, AnswerAgentVersion));
 
-            ResponseResult agentResponse = answerClient.CreateResponse(prompt);
+            // 2. Define the strict parameters to kill the "creativity" (randomness)
+            var responseOptions = new ResponseOptions 
+            {
+                Temperature = 0.0f,
+                TopP = 0.1f
+            };
+
+            // 3. Pass the options into the response generation
+            ResponseResult agentResponse = answerClient.CreateResponse(prompt, responseOptions);
 
             stopwatch.Stop();
-
             string answer = agentResponse.GetOutputText();
 
-            // ★ CHANGED: return JSON with answer + sources (no text footer)
-            await WriteJson(response, answer, sources, "search",
-                            stopwatch.ElapsedMilliseconds, searchQuery, results.Count);
+            // Save only AI Search questions and answers.
+            // Small talk returns earlier, so it never reaches this code.
+            FeedbackRecordReference? feedbackRecord = null;
+
+            try
+            {
+                feedbackRecord =
+                    await FeedbackFunction.SaveSearchResponseAsync(
+                        question: question,
+                        answer: answer,
+                        sourceTitles: seenDocumentTitles,
+                        program: ""
+                    );
+            }
+            catch (Exception feedbackException)
+            {
+                // Feedback storage should never break the chatbot response.
+                Console.WriteLine(
+                    "Unable to save feedback record: " +
+                    feedbackException.Message
+                );
+            }
+
+            // Return the answer, sources, and feedback identifiers.
+            await WriteJson(
+                response,
+                answer,
+                sources,
+                "search",
+                stopwatch.ElapsedMilliseconds,
+                searchQuery,
+                results.Count,
+                feedbackRecord?.ResponseId,
+                feedbackRecord?.PartitionKey,
+                feedbackRecord?.FeedbackStatus
+            );
+
             return response;
         }
         catch (Exception ex)
@@ -239,30 +297,67 @@ public class ChatFunction
     }
 
     // ★ NEW helper: writes the standard JSON envelope
-    private static async Task WriteJson(
-        HttpResponseData response,
-        string answer,
-        List<object>? sources,
-        string path,
-        long executionMs = 0,
-        string rewrittenQuery = "",
-        int searchResults = 0)
-    {
-        string payload = JsonSerializer.Serialize(new
+        private static async Task WriteJson(
+            HttpResponseData response,
+            string answer,
+            List<object>? sources,
+            string path,
+            long executionMs = 0,
+            string rewrittenQuery = "",
+            int searchResults = 0,
+            string? feedbackId = null,
+            string? feedbackPartition = null,
+            string? feedbackStatus = null)
         {
-            answer = answer,
-            sources = sources ?? new List<object>(),
-            debug = new
-            {
-                path = path,
-                rewrittenQuery = rewrittenQuery,
-                searchResults = searchResults,
-                executionMs = executionMs
-            }
-        });
+            bool didSearch =
+                string.Equals(
+                    path,
+                    "search",
+                    StringComparison.OrdinalIgnoreCase
+                );
 
-        await response.WriteStringAsync(payload);
-    }
+            string payload =
+                JsonSerializer.Serialize(
+                    new
+                    {
+                        answer = answer,
+
+                        sources =
+                            sources ?? new List<object>(),
+
+                        didSearch = didSearch,
+
+                        feedbackId = feedbackId,
+
+                        feedbackPartition =
+                            feedbackPartition,
+
+                        feedbackStatus =
+                            feedbackStatus,
+
+                        debug = new
+                        {
+                            path = path,
+
+                            rewrittenQuery =
+                                rewrittenQuery,
+
+                            searchResults =
+                                searchResults,
+
+                            executionMs =
+                                executionMs
+                        }
+                    }
+                );
+
+            response.Headers.Add(
+                "Content-Type",
+                "application/json; charset=utf-8"
+            );
+
+            await response.WriteStringAsync(payload);
+        }
 
     private static int? ExtractPageNumber(string text)
 {
