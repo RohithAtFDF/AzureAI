@@ -231,18 +231,8 @@ public class ChatFunction
                 .GetProjectResponsesClientForAgent(
                     new AgentReference(AnswerAgentName, AnswerAgentVersion));
 
-            var responseOptions =
-                new CreateResponseOptions
-                {
-                    Temperature = 0.1f
-                };
+            ResponseResult agentResponse = answerClient.CreateResponse(prompt);
 
-            responseOptions.InputItems.Add(
-                ResponseItem.CreateUserMessageItem(prompt)
-            );
-
-            ResponseResult agentResponse =
-                answerClient.CreateResponse(responseOptions);
             stopwatch.Stop();
             string answer = agentResponse.GetOutputText();
 
