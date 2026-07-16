@@ -53,7 +53,6 @@ public class ChatFunction
 
         var response = req.CreateResponse(HttpStatusCode.OK);
         // ★ CHANGED: default to JSON now (was text/plain)
-        response.Headers.Add("Content-Type", "application/json; charset=utf-8");
 
         try
         {
