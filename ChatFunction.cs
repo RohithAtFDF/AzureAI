@@ -232,16 +232,18 @@ public class ChatFunction
                 .GetProjectResponsesClientForAgent(
                     new AgentReference(AnswerAgentName, AnswerAgentVersion));
 
-            // 2. Define the strict parameters to kill the "creativity" (randomness)
-            var responseOptions = new ResponseOptions 
-            {
-                Temperature = 0.0f,
-                TopP = 0.1f
-            };
+            var responseOptions =
+                new CreateResponseOptions
+                {
+                    Temperature = 0.1f
+                };
 
-            // 3. Pass the options into the response generation
-            ResponseResult agentResponse = answerClient.CreateResponse(prompt, responseOptions);
+            responseOptions.InputItems.Add(
+                ResponseItem.CreateUserMessageItem(prompt)
+            );
 
+            ResponseResult agentResponse =
+                answerClient.CreateResponse(responseOptions);
             stopwatch.Stop();
             string answer = agentResponse.GetOutputText();
 
