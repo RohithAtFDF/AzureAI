@@ -39,7 +39,7 @@ public class ChatFunction
         "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257";
 
     private const string AnswerAgentName = "BCFS-Agent";
-    private const string AnswerAgentVersion = "5";
+    private const string AnswerAgentVersion = "6";
 
     private const string RouterAgentName = "BCFS-Query-Agent";
     private const string RouterAgentVersion = "2";
