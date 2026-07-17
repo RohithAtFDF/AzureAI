@@ -152,7 +152,7 @@ public class ChatFunction
                 Size = 10
             };
             Console.WriteLine($"Search Query: {searchQuery}");
-            
+
             SearchResults<SearchDocument> searchResults =
                 searchClient.Search<SearchDocument>(searchQuery, searchOptions);
 
@@ -227,17 +227,12 @@ public class ChatFunction
             // ★ CHANGED: cleaned-up prompt (removed stray line numbers)
             // =========================================================
 
-            string prompt =
-                    $@"You are a strict data extractor for BCFS.
-                    Only output facts explicitly stated in the HANDBOOK CONTEXT.
-                    Do not improvise. Do not use outside knowledge.
-                    If summarizing multiple manuals, use a standard bulleted list.
-
-                    HANDBOOK CONTEXT:
+            string prompt = $@"
+                HANDBOOK CONTEXT:
                     {(hasContext ? context : "No relevant excerpts found.")}
 
-                    USER QUESTION:
-                    {question}";
+                USER QUESTION:
+                {question}";
 
             var answerClient = projectClient.OpenAI
                 .GetProjectResponsesClientForAgent(
