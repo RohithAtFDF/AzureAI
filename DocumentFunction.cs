@@ -10,6 +10,8 @@ using Azure.Storage.Blobs.Models;
 using Microsoft.Azure.Functions.Worker;
 using Microsoft.Azure.Functions.Worker.Http;
 
+// this file is used to serve PDF documents from Azure Blob Storage. It is used by the plugin to retrieve documents for the user.
+
 public class DocumentFunction
 {
     [Function("document")]
@@ -54,6 +56,13 @@ public class DocumentFunction
 
                 return badRequest;
             }
+            
+           /// to get number of documents. 
+            int documentCount = Directory.GetFiles(
+                Directory.GetCurrentDirectory(),
+                "*.pdf",
+                SearchOption.AllDirectories
+            ).Length;
 
             // These values come from Function App environment variables.
             string? storageAccountName =

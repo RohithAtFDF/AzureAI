@@ -51,6 +51,14 @@ public class ChatFunction
     {
         var stopwatch = Stopwatch.StartNew();
 
+        int documentCount = Directory.GetFiles(
+            Directory.GetCurrentDirectory(),
+            "*.pdf",
+            SearchOption.AllDirectories
+        ).Length;
+
+        Console.WriteLine($"Document count: {documentCount}");
+
         var response = req.CreateResponse(HttpStatusCode.OK);
         // ★ CHANGED: default to JSON now (was text/plain)
 
