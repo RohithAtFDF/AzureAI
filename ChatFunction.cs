@@ -50,7 +50,7 @@ public class ChatFunction
         HttpRequestData req)
     {
         var stopwatch = Stopwatch.StartNew();
-
+        ///number of documents in the current directory and subdirectories
         int documentCount = Directory.GetFiles(
             Directory.GetCurrentDirectory(),
             "*.pdf",
@@ -149,9 +149,10 @@ public class ChatFunction
             var searchOptions = new SearchOptions
             {
                 SearchMode = SearchMode.Any,
-                Size = 5
+                Size = 10
             };
-
+            Console.WriteLine($"Search Query: {searchQuery}");
+            
             SearchResults<SearchDocument> searchResults =
                 searchClient.Search<SearchDocument>(searchQuery, searchOptions);
 
@@ -168,6 +169,9 @@ public class ChatFunction
 
             foreach (var result in results)
             {
+                Console.WriteLine(result.Document["document_title"]);
+                Console.WriteLine(result.Document["content_text"]);  //sample testing retrieval output
+
                 if (result.Document.TryGetValue(
                         "content_text",
                         out var text))
