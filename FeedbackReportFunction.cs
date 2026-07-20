@@ -13,25 +13,14 @@ public class FeedbackReportFunction
             Route = "feedback/report")]
         HttpRequestData req)
     {
-        TableClient tableClient = await GetTableClientAsync();
+        var response = req.CreateResponse(HttpStatusCode.OK);
 
-        List<object> results = new();
-
-        await foreach (ChatFeedbackEntity entity in tableClient.QueryAsync<ChatFeedbackEntity>())
+        await response.WriteAsJsonAsync(new[]
         {
-            results.Add(new
-            {
-                entity.CreatedUtc,
-                entity.Question,
-                entity.FeedbackStatus,
-                entity.Program,
-                entity.SourceTitles
-            });
-        }
-
-        HttpResponseData response = req.CreateResponse(HttpStatusCode.OK);
-
-        await response.WriteAsJsonAsync(results);
+            new {
+                message = "Feedback report endpoint works"
+            }
+        });
 
         return response;
     }
