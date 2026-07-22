@@ -8,21 +8,14 @@ public class FeedbackReportFunction
     [Function("FeedbackReport")]
     public async Task<HttpResponseData> Run(
         [HttpTrigger(
-            AuthorizationLevel.Function,
+            AuthorizationLevel.Anonymous,
             "get",
-            Route = "feedback/report")]
+            Route = "test")]
         HttpRequestData req)
     {
         var response = req.CreateResponse(HttpStatusCode.OK);
-
-        await response.WriteAsJsonAsync(new[]
-        {
-            new {
-                message = "Feedback report endpoint works"
-            }
-        });
-
-        return response;
+            await response.WriteStringAsync("Hello");
+            return response;
     }
 
     private static async Task<TableClient> GetTableClientAsync()
