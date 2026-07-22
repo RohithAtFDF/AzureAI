@@ -8,7 +8,7 @@ public class FeedbackReportFunction
     [Function("FeedbackReport")]
     public async Task<HttpResponseData> Run(
         [HttpTrigger(
-            AuthorizationLevel.Anonymous,
+            AuthorizationLevel.Function,
             "get",
             Route = "test")]
         HttpRequestData req)
