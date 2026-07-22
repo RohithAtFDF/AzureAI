@@ -146,11 +146,38 @@ public class ChatFunction
                 indexName,
                 new AzureKeyCredential(searchKey));
 
+            // =========================================================
+            // ★ CHANGED: Match Search Explorer behavior
+            //   - Semantic ranking (uses your semantic configuration)
+            //   - Vector query against content_embedding
+            //   - Top 20 instead of 10
+            //   - Explicit Select so we always get the fields we use
+            // =========================================================
             var searchOptions = new SearchOptions
             {
-                SearchMode = SearchMode.Any,
-                Size = 10
+                Size = 20,
+                QueryType = SearchQueryType.Semantic,
+                SemanticSearch = new SemanticSearchOptions
+                {
+                    SemanticConfigurationName = "bcfs-manual-indexer-semantic-configuration"
+                }
             };
+
+            // Fields we actually read below
+            searchOptions.Select.Add("document_title");
+            searchOptions.Select.Add("content_text");
+            searchOptions.Select.Add("content_path");
+
+            // ★ Vector query (text-to-vector). This mirrors the "kind": "text"
+            //   vectorQuery you ran in Search Explorer.
+            searchOptions.VectorSearch = new VectorSearchOptions();
+            searchOptions.VectorSearch.Queries.Add(
+                new VectorizableTextQuery(searchQuery)
+                {
+                    KNearestNeighborsCount = 20,
+                    Fields = { "content_embedding" }
+                });
+
             Console.WriteLine($"Search Query: {searchQuery}");
 
             SearchResults<SearchDocument> searchResults =
@@ -169,8 +196,10 @@ public class ChatFunction
 
             foreach (var result in results)
             {
+                // ★ CHANGED: log the reranker score so we can see ranking in logs
+                Console.WriteLine($"RerankerScore: {result.SemanticSearch?.RerankerScore}");
                 Console.WriteLine(result.Document["document_title"]);
-                Console.WriteLine(result.Document["content_text"]);  //sample testing retrieval output
+                Console.WriteLine(result.Document["content_text"]);  // sample testing retrieval output
 
                 if (result.Document.TryGetValue(
                         "content_text",
