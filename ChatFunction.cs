@@ -76,9 +76,14 @@ public class ChatFunction
             }
 
             var data = JsonSerializer.Deserialize<Dictionary<string, string>>(requestBody);
-            var requestData = new Dictionary<string, string>(
-                data ?? new Dictionary<string, string>(),
-                StringComparer.OrdinalIgnoreCase);
+            var requestData = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            if (data != null)
+            {
+                foreach (var kvp in data)
+                {
+                    requestData[kvp.Key] = kvp.Value;
+                }
+            }
 
             string question =
                 requestData.TryGetValue("question", out var q) ? q : "";
@@ -493,5 +498,8 @@ public class ChatFunction
 
         [JsonPropertyName("searchQuery")]
         public string? SearchQuery { get; set; }
+
+        [JsonPropertyName("questionCategory")]
+        public string? QuestionCategory { get; set; }
     }
 }
