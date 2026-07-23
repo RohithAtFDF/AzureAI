@@ -21,7 +21,14 @@ public class FeedbackFunction
         string question,
         string answer,
         IEnumerable<string> sourceTitles,
-        string program = "")
+        string program = "",
+        string userName = "",
+        string email = "",
+        int searchResultCount = 0,
+        double topScore = 0,
+        bool hadCitations = false,
+        long responseTimeMs = 0,
+        string? questionCategory = null)
     {
         TableClient tableClient = await GetTableClientAsync();
 
@@ -46,7 +53,14 @@ public class FeedbackFunction
             CreatedUtc = now,
             FeedbackUpdatedUtc = null,
             SourceTitles = JsonSerializer.Serialize(uniqueSources),
-            Program = LimitText(program, 500)
+            Program = LimitText(program, 500),
+            UserName = LimitText(userName, 200),
+            Email = LimitText(email, 200),
+            SearchResultCount = searchResultCount,
+            TopScore = topScore,
+            HadCitations = hadCitations,
+            ResponseTimeMs = responseTimeMs,
+            QuestionCategory = LimitText(questionCategory, 200)
         };
 
         await tableClient.AddEntityAsync(entity);
@@ -310,6 +324,22 @@ public class ChatFeedbackEntity : ITableEntity
 
     public string Program { get; set; } =
         string.Empty;
+
+    public string UserName { get; set; } =
+        string.Empty;
+
+    public string Email { get; set; } =
+        string.Empty;
+
+    public int SearchResultCount { get; set; }
+
+    public double TopScore { get; set; }
+
+    public bool HadCitations { get; set; }
+
+    public long ResponseTimeMs { get; set; }
+
+    public string? QuestionCategory { get; set; }
 }
 
 public class FeedbackRequest

@@ -42,7 +42,7 @@ public class ChatFunction
     private const string AnswerAgentVersion = "9";
 
     private const string RouterAgentName = "BCFS-Query-Agent";
-    private const string RouterAgentVersion = "2";
+    private const string RouterAgentVersion = "3";
 
     [Function("chat")]
     public async Task<HttpResponseData> Run(
@@ -76,9 +76,18 @@ public class ChatFunction
             }
 
             var data = JsonSerializer.Deserialize<Dictionary<string, string>>(requestBody);
+            var requestData = new Dictionary<string, string>(
+                data ?? new Dictionary<string, string>(),
+                StringComparer.OrdinalIgnoreCase);
 
             string question =
-                data != null && data.TryGetValue("question", out var q) ? q : "";
+                requestData.TryGetValue("question", out var q) ? q : "";
+
+            string userName =
+                requestData.TryGetValue("userName", out var u) ? u : "";
+
+            string email =
+                requestData.TryGetValue("email", out var e) ? e : "";
 
             if (string.IsNullOrWhiteSpace(question))
             {
@@ -185,6 +194,10 @@ public class ChatFunction
 
             var results = searchResults.GetResults().ToList();
 
+            double topScore = results.Any()
+                ? results.Max(r => r.Score ?? 0.0)
+                : 0.0;
+
             // -----------------------------
             // Build Context + Sources
             // ★ CHANGED: also collect sources for citations
@@ -279,6 +292,10 @@ public class ChatFunction
 
             stopwatch.Stop();
             string answer = agentResponse.GetOutputText();
+            long responseTimeMs = stopwatch.ElapsedMilliseconds;
+            int searchResultCount = results.Count;
+            bool hadCitations = sources.Count > 0;
+            string? questionCategory = decision?.QuestionCategory;
 
             // Save only AI Search questions and answers.
             // Small talk returns earlier, so it never reaches this code.
@@ -291,7 +308,14 @@ public class ChatFunction
                         question: question,
                         answer: answer,
                         sourceTitles: seenDocumentTitles,
-                        program: firstManualTitle
+                        program: firstManualTitle,
+                        userName: userName,
+                        email: email,
+                        searchResultCount: searchResultCount,
+                        topScore: topScore,
+                        hadCitations: hadCitations,
+                        responseTimeMs: responseTimeMs,
+                        questionCategory: questionCategory
                     );
             }
             catch (Exception feedbackException)
@@ -309,9 +333,12 @@ public class ChatFunction
                 answer,
                 sources,
                 "search",
-                stopwatch.ElapsedMilliseconds,
+                responseTimeMs,
                 searchQuery,
-                results.Count,
+                searchResultCount,
+                topScore,
+                hadCitations,
+                questionCategory,
                 feedbackRecord?.ResponseId,
                 feedbackRecord?.PartitionKey,
                 feedbackRecord?.FeedbackStatus
@@ -340,6 +367,9 @@ public class ChatFunction
             long executionMs = 0,
             string rewrittenQuery = "",
             int searchResults = 0,
+            double topScore = 0.0,
+            bool hadCitations = false,
+            string? questionCategory = null,
             string? feedbackId = null,
             string? feedbackPartition = null,
             string? feedbackStatus = null)
@@ -379,6 +409,12 @@ public class ChatFunction
 
                             searchResults =
                                 searchResults,
+
+                            topScore = topScore,
+
+                            hadCitations = hadCitations,
+
+                            questionCategory = questionCategory,
 
                             executionMs =
                                 executionMs
