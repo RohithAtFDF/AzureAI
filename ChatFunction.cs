@@ -109,6 +109,16 @@ public class ChatFunction
                 // Ignore parse failures here; we still validate question below.
             }
 
+            if (string.IsNullOrWhiteSpace(userName))
+            {
+                userName = GetAuthenticatedUserName(req);
+            }
+
+            if (string.IsNullOrWhiteSpace(email))
+            {
+                email = GetAuthenticatedUserEmail(req);
+            }
+
             if (string.IsNullOrWhiteSpace(question))
             {
                 await WriteJson(response, "Error: 'question' was missing or empty.", null, "error");
