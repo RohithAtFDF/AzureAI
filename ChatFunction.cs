@@ -75,24 +75,39 @@ public class ChatFunction
                 return response;
             }
 
-            var data = JsonSerializer.Deserialize<Dictionary<string, string>>(requestBody);
-            var requestData = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-            if (data != null)
+            string question = string.Empty;
+            string userName = string.Empty;
+            string email = string.Empty;
+
+            try
             {
-                foreach (var kvp in data)
+                using JsonDocument json = JsonDocument.Parse(requestBody);
+                JsonElement root = json.RootElement;
+
+                if (root.ValueKind == JsonValueKind.Object)
                 {
-                    requestData[kvp.Key] = kvp.Value;
+                    question = GetJsonString(root, "question");
+                    userName = GetJsonString(root, "userName");
+                    if (string.IsNullOrWhiteSpace(userName))
+                    {
+                        userName = GetJsonString(root, "username");
+                    }
+
+                    email = GetJsonString(root, "email");
+                    if (string.IsNullOrWhiteSpace(email))
+                    {
+                        email = GetJsonString(root, "userEmail");
+                        if (string.IsNullOrWhiteSpace(email))
+                        {
+                            email = GetJsonString(root, "user_email");
+                        }
+                    }
                 }
             }
-
-            string question =
-                requestData.TryGetValue("question", out var q) ? q : "";
-
-            string userName =
-                requestData.TryGetValue("userName", out var u) ? u : "";
-
-            string email =
-                requestData.TryGetValue("email", out var e) ? e : "";
+            catch (JsonException)
+            {
+                // Ignore parse failures here; we still validate question below.
+            }
 
             if (string.IsNullOrWhiteSpace(question))
             {
@@ -435,12 +450,23 @@ public class ChatFunction
             await response.WriteStringAsync(payload);
         }
 
+        private static string GetJsonString(JsonElement element, string propertyName)
+        {
+            if (element.TryGetProperty(propertyName, out JsonElement value) &&
+                value.ValueKind == JsonValueKind.String)
+            {
+                return value.GetString() ?? string.Empty;
+            }
+
+            return string.Empty;
+        }
+
     private static int? ExtractPageNumber(string text)
-{
-    if (string.IsNullOrWhiteSpace(text))
     {
-        return null;
-    }
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return null;
+        }
 
     Match match = Regex.Match(
         text,
