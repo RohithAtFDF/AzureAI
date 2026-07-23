@@ -109,14 +109,15 @@ public class ChatFunction
                 // Ignore parse failures here; we still validate question below.
             }
 
-            if (string.IsNullOrWhiteSpace(userName))
+            if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(email))
             {
-                userName = GetAuthenticatedUserName(req);
-            }
-
-            if (string.IsNullOrWhiteSpace(email))
-            {
-                email = GetAuthenticatedUserEmail(req);
+                var authIdentity = AuthUserExtractor.GetUser(req);
+                userName = string.IsNullOrWhiteSpace(userName)
+                    ? authIdentity?.UserName ?? string.Empty
+                    : userName;
+                email = string.IsNullOrWhiteSpace(email)
+                    ? authIdentity?.Email ?? string.Empty
+                    : email;
             }
 
             if (string.IsNullOrWhiteSpace(question))
@@ -471,72 +472,7 @@ public class ChatFunction
             return string.Empty;
         }
 
-        private static string GetAuthenticatedUserName(HttpRequestData req)
-        {
-            var principal = GetClientPrincipal(req);
-            if (principal != null)
-            {
-                string userName = GetClaimValue(principal, "name", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name");
-                return string.IsNullOrWhiteSpace(userName)
-                    ? principal.userDetails ?? string.Empty
-                    : userName;
-            }
-
-            return string.Empty;
-        }
-
-        private static string GetAuthenticatedUserEmail(HttpRequestData req)
-        {
-            var principal = GetClientPrincipal(req);
-            if (principal != null)
-            {
-                string email = GetClaimValue(principal, "preferred_username", "email", "emails", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
-                return string.IsNullOrWhiteSpace(email)
-                    ? principal.userDetails ?? string.Empty
-                    : email;
-            }
-
-            return string.Empty;
-        }
-
-        private static ClientPrincipal? GetClientPrincipal(HttpRequestData req)
-        {
-            if (req.Headers.TryGetValues("x-ms-client-principal", out var values))
-            {
-                string encoded = values.FirstOrDefault() ?? string.Empty;
-                if (!string.IsNullOrWhiteSpace(encoded))
-                {
-                    try
-                    {
-                        byte[] decodedBytes = Convert.FromBase64String(encoded);
-                        string json = Encoding.UTF8.GetString(decodedBytes);
-                        return JsonSerializer.Deserialize<ClientPrincipal>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    }
-                    catch
-                    {
-                        return null;
-                    }
-                }
-            }
-
-            return null;
-        }
-
-        private static string GetClaimValue(ClientPrincipal principal, params string[] claimTypes)
-        {
-            foreach (var type in claimTypes)
-            {
-                var claim = principal.claims?.FirstOrDefault(c => string.Equals(c.typ, type, StringComparison.OrdinalIgnoreCase));
-                if (claim != null && !string.IsNullOrWhiteSpace(claim.val))
-                {
-                    return claim.val;
-                }
-            }
-
-            return string.Empty;
-        }
-
-            private static int? ExtractPageNumber(string text)
+        private static int? ExtractPageNumber(string text)
         {
             if (string.IsNullOrWhiteSpace(text))
             {
