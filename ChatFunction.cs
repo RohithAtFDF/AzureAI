@@ -193,6 +193,7 @@ public class ChatFunction
             var sources = new List<object>();
 
             var seenDocumentTitles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            string firstManualTitle = string.Empty;
 
             foreach (var result in results)
             {
@@ -235,6 +236,13 @@ public class ChatFunction
                     */
                     if (seenDocumentTitles.Add(title))
                     {
+                        if (string.IsNullOrWhiteSpace(firstManualTitle))
+                        {
+                            firstManualTitle = !string.IsNullOrWhiteSpace(title)
+                                ? title
+                                : path;
+                        }
+
                         sources.Add(new
                         {
                             title = title,
@@ -283,7 +291,7 @@ public class ChatFunction
                         question: question,
                         answer: answer,
                         sourceTitles: seenDocumentTitles,
-                        program: ""
+                        program: firstManualTitle
                     );
             }
             catch (Exception feedbackException)
