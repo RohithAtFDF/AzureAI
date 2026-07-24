@@ -69,7 +69,7 @@ public class ChatFunction
         var response = req.CreateResponse(HttpStatusCode.OK);
             _logger.LogInformation("Chat request started.");
             _logger.LogInformation("Auth header summary: {DebugSummary}", AuthUserExtractor.GetDebugSummary(req));
-            _logger.LogInformation("Request method: {Method} Path: {Path}", req.Method, req.Url.Path);
+            _logger.LogInformation("Request method: {Method} Path: {Path}", req.Method, req.Url.AbsolutePath);
             // ★ CHANGED: default to JSON now (was text/plain)
 
             try
