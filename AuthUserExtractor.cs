@@ -28,7 +28,10 @@ public static class AuthUserExtractor
         string userName = GetClaimValue(
             principal,
             "name",
-            "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name");
+            "displayName",
+            "given_name",
+            "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name",
+            "http://schemas.microsoft.com/identity/claims/displayname");
 
         string email = GetClaimValue(
             principal,
@@ -49,15 +52,21 @@ public static class AuthUserExtractor
                 : userDetails;
         }
 
-        if (string.IsNullOrWhiteSpace(userName))
+        if (string.IsNullOrWhiteSpace(userName) &&
+            !string.IsNullOrWhiteSpace(userDetails) &&
+            !IsEmailLike(userDetails))
         {
             userName = userDetails;
         }
 
-        if (string.IsNullOrWhiteSpace(userName))
+        if (string.IsNullOrWhiteSpace(userName) &&
+            !string.IsNullOrWhiteSpace(principalName) &&
+            !IsEmailLike(principalName))
         {
             userName = principalName;
         }
+
+        userName ??= string.Empty;
 
         string userId =
             !string.IsNullOrWhiteSpace(principalId)
@@ -160,6 +169,11 @@ public static class AuthUserExtractor
         }
 
         return string.Empty;
+    }
+
+    private static bool IsEmailLike(string value)
+    {
+        return value.Contains("@") || value.Contains("\\\\");
     }
 }
 
