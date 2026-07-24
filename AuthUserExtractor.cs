@@ -6,44 +6,101 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Azure.Functions.Worker.Http;
 
-public class AuthUserExtractor
+public static class AuthUserExtractor
 {
     public static AuthIdentity? GetUser(HttpRequestData req)
     {
-        var principal = GetClientPrincipal(req);
-        if (principal == null)
+        string principalId =
+            GetHeader(req, "X-MS-CLIENT-PRINCIPAL-ID");
+
+        string principalName =
+            GetHeader(req, "X-MS-CLIENT-PRINCIPAL-NAME");
+
+        ClientPrincipal? principal = GetClientPrincipal(req);
+
+        if (principal == null &&
+            string.IsNullOrWhiteSpace(principalId) &&
+            string.IsNullOrWhiteSpace(principalName))
         {
             return null;
         }
 
-        string userName = GetClaimValue(principal, "name", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name");
-        if (string.IsNullOrWhiteSpace(userName))
-        {
-            userName = principal.userDetails ?? string.Empty;
-        }
+        string userName = GetClaimValue(
+            principal,
+            "name",
+            "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name");
 
-        string email = GetClaimValue(principal, "preferred_username", "email", "emails", "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress");
+        string email = GetClaimValue(
+            principal,
+            "preferred_username",
+            "email",
+            "emails",
+            "upn",
+            "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress",
+            "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/upn");
+
+        string userDetails =
+            principal?.UserDetails ?? string.Empty;
+
         if (string.IsNullOrWhiteSpace(email))
         {
-            email = principal.userDetails ?? string.Empty;
+            email = !string.IsNullOrWhiteSpace(principalName)
+                ? principalName
+                : userDetails;
         }
+
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            userName = userDetails;
+        }
+
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            userName = principalName;
+        }
+
+        string userId =
+            !string.IsNullOrWhiteSpace(principalId)
+                ? principalId
+                : principal?.UserId
+                    ?? principal?.PrincipalId
+                    ?? string.Empty;
 
         return new AuthIdentity
         {
-            UserId = principal.userId ?? string.Empty,
+            UserId = userId,
             UserName = userName,
             Email = email
         };
     }
 
-    private static ClientPrincipal? GetClientPrincipal(HttpRequestData req)
+    public static string GetDebugSummary(HttpRequestData req)
     {
-        if (!req.Headers.TryGetValues("x-ms-client-principal", out var values))
-        {
-            return null;
-        }
+        bool hasPrincipal =
+            req.Headers.Contains("X-MS-CLIENT-PRINCIPAL");
 
-        string encoded = values.FirstOrDefault() ?? string.Empty;
+        bool hasPrincipalId =
+            req.Headers.Contains("X-MS-CLIENT-PRINCIPAL-ID");
+
+        bool hasPrincipalName =
+            req.Headers.Contains("X-MS-CLIENT-PRINCIPAL-NAME");
+
+        bool hasIdentityProvider =
+            req.Headers.Contains("X-MS-CLIENT-PRINCIPAL-IDP");
+
+        return
+            $"PrincipalHeader={hasPrincipal}, " +
+            $"PrincipalIdHeader={hasPrincipalId}, " +
+            $"PrincipalNameHeader={hasPrincipalName}, " +
+            $"IdentityProviderHeader={hasIdentityProvider}";
+    }
+
+    private static ClientPrincipal? GetClientPrincipal(
+        HttpRequestData req)
+    {
+        string encoded =
+            GetHeader(req, "X-MS-CLIENT-PRINCIPAL");
+
         if (string.IsNullOrWhiteSpace(encoded))
         {
             return null;
@@ -51,12 +108,15 @@ public class AuthUserExtractor
 
         try
         {
-            byte[] decodedBytes = Convert.FromBase64String(encoded);
-            string json = Encoding.UTF8.GetString(decodedBytes);
-            return JsonSerializer.Deserialize<ClientPrincipal>(json, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            });
+            byte[] bytes = Convert.FromBase64String(encoded);
+            string json = Encoding.UTF8.GetString(bytes);
+
+            return JsonSerializer.Deserialize<ClientPrincipal>(
+                json,
+                new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
         }
         catch
         {
@@ -64,14 +124,38 @@ public class AuthUserExtractor
         }
     }
 
-    private static string GetClaimValue(ClientPrincipal principal, params string[] claimTypes)
+    private static string GetHeader(
+        HttpRequestData req,
+        string headerName)
     {
-        foreach (var type in claimTypes)
+        return req.Headers.TryGetValues(
+            headerName,
+            out IEnumerable<string>? values)
+                ? values.FirstOrDefault() ?? string.Empty
+                : string.Empty;
+    }
+
+    private static string GetClaimValue(
+        ClientPrincipal? principal,
+        params string[] claimTypes)
+    {
+        if (principal?.Claims == null)
         {
-            var claim = principal.claims?.FirstOrDefault(c => string.Equals(c.typ, type, StringComparison.OrdinalIgnoreCase));
-            if (claim != null && !string.IsNullOrWhiteSpace(claim.val))
+            return string.Empty;
+        }
+
+        foreach (string type in claimTypes)
+        {
+            ClientClaim? claim =
+                principal.Claims.FirstOrDefault(
+                    c => string.Equals(
+                        c.Type,
+                        type,
+                        StringComparison.OrdinalIgnoreCase));
+
+            if (!string.IsNullOrWhiteSpace(claim?.Value))
             {
-                return claim.val!;
+                return claim.Value;
             }
         }
 
@@ -88,36 +172,43 @@ public class AuthIdentity
 
 public class ClientPrincipal
 {
+    // Static Web Apps format
+
+    [JsonPropertyName("identityProvider")]
+    public string? IdentityProvider { get; set; }
+
+    [JsonPropertyName("userId")]
+    public string? UserId { get; set; }
+
+    [JsonPropertyName("userDetails")]
+    public string? UserDetails { get; set; }
+
+    [JsonPropertyName("userRoles")]
+    public List<string>? UserRoles { get; set; }
+
+    // App Service Easy Auth format
+
     [JsonPropertyName("auth_typ")]
     public string? AuthType { get; set; }
 
     [JsonPropertyName("claims")]
-    public List<ClientClaim>? claims { get; set; }
+    public List<ClientClaim>? Claims { get; set; }
 
-    [JsonPropertyName("name_type")]
+    [JsonPropertyName("name_typ")]
     public string? NameType { get; set; }
 
-    [JsonPropertyName("role_type")]
+    [JsonPropertyName("role_typ")]
     public string? RoleType { get; set; }
-
-    [JsonPropertyName("claims_version")]
-    public string? ClaimsVersion { get; set; }
 
     [JsonPropertyName("principal_id")]
     public string? PrincipalId { get; set; }
-
-    [JsonPropertyName("user_id")]
-    public string? userId { get; set; }
-
-    [JsonPropertyName("user_details")]
-    public string? userDetails { get; set; }
 }
 
 public class ClientClaim
 {
     [JsonPropertyName("typ")]
-    public string? typ { get; set; }
+    public string? Type { get; set; }
 
     [JsonPropertyName("val")]
-    public string? val { get; set; }
+    public string? Value { get; set; }
 }

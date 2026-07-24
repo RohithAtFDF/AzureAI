@@ -35,8 +35,15 @@ using Microsoft.Extensions.Logging;
 
 public class ChatFunction
 {
+    private readonly ILogger _logger;
+
     private const string AgentEndpoint =
         "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257";
+
+    public ChatFunction(ILoggerFactory loggerFactory)
+    {
+        _logger = loggerFactory.CreateLogger<ChatFunction>();
+    }
 
     private const string AnswerAgentName = "BCFS-Agent";
     private const string AnswerAgentVersion = "9";
@@ -60,15 +67,18 @@ public class ChatFunction
         Console.WriteLine($"Document count: {documentCount}");
 
         var response = req.CreateResponse(HttpStatusCode.OK);
-        // ★ CHANGED: default to JSON now (was text/plain)
+            _logger.LogInformation("Chat request started.");
+            _logger.LogInformation("Auth header summary: {DebugSummary}", AuthUserExtractor.GetDebugSummary(req));
+            _logger.LogInformation("Request method: {Method} Path: {Path}", req.Method, req.Url.Path);
+            // ★ CHANGED: default to JSON now (was text/plain)
 
-        try
-        {
-            // -----------------------------
-            // Read Request
-            // -----------------------------
-            string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
-
+            try
+            {
+                // -----------------------------
+                // Read Request
+                // -----------------------------
+                string requestBody = await new StreamReader(req.Body).ReadToEndAsync();
+                _logger.LogDebug("Request body: {RequestBody}", requestBody);
             if (string.IsNullOrWhiteSpace(requestBody))
             {
                 await WriteJson(response, "Error: Request body was empty.", null, "error");
@@ -112,6 +122,12 @@ public class ChatFunction
             if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(email))
             {
                 var authIdentity = AuthUserExtractor.GetUser(req);
+                _logger.LogInformation(
+                    "AuthUserExtractor.GetUser returned UserId={UserId}, UserName={UserName}, Email={Email}",
+                    authIdentity?.UserId ?? "<none>",
+                    authIdentity?.UserName ?? "<none>",
+                    authIdentity?.Email ?? "<none>");
+
                 userName = string.IsNullOrWhiteSpace(userName)
                     ? authIdentity?.UserName ?? string.Empty
                     : userName;
@@ -120,8 +136,11 @@ public class ChatFunction
                     : email;
             }
 
+            _logger.LogInformation("Final user identity resolved: userName={UserName}, email={Email}", userName, email);
+
             if (string.IsNullOrWhiteSpace(question))
             {
+                _logger.LogWarning("Chat request rejected: missing question.");
                 await WriteJson(response, "Error: 'question' was missing or empty.", null, "error");
                 return response;
             }
@@ -218,7 +237,7 @@ public class ChatFunction
                     Fields = { "content_embedding" }
                 });
 
-            Console.WriteLine($"Search Query: {searchQuery}");
+            _logger.LogInformation("Search Query: {SearchQuery}", searchQuery);
 
             SearchResults<SearchDocument> searchResults =
                 searchClient.Search<SearchDocument>(searchQuery, searchOptions);
@@ -242,9 +261,15 @@ public class ChatFunction
             foreach (var result in results)
             {
                 // ★ CHANGED: log the reranker score so we can see ranking in logs
-                Console.WriteLine($"RerankerScore: {result.SemanticSearch?.RerankerScore}");
-                Console.WriteLine(result.Document["document_title"]);
-                Console.WriteLine(result.Document["content_text"]);  // sample testing retrieval output
+                _logger.LogInformation(
+                    "Result: Title={Title}, Score={Score}, RerankerScore={RerankerScore}",
+                    result.Document.TryGetValue("document_title", out var titleValue) ? titleValue?.ToString() : "<unknown>",
+                    result.Score,
+                    result.SemanticSearch?.RerankerScore);
+                _logger.LogDebug("Result content text excerpt: {Excerpt}",
+                    result.Document.TryGetValue("content_text", out var contentValue)
+                        ? contentValue?.ToString()?.Substring(0, Math.Min(200, contentValue?.ToString().Length ?? 0))
+                        : "");
 
                 if (result.Document.TryGetValue(
                         "content_text",
