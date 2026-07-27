@@ -191,7 +191,7 @@ public class ChatFunction
             // STEP 2: Azure AI Search
             // =========================================================
             string searchEndpoint = "https://cisaisearchservice.search.windows.net";
-            string indexName = "bcfs-manual-indexer";
+            string indexName = "bcfs-manuals";
             string? searchKey = Environment.GetEnvironmentVariable("SEARCH_KEY");
 
             if (string.IsNullOrWhiteSpace(searchKey))
