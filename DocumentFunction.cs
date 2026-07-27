@@ -94,7 +94,7 @@ public class DocumentFunction
             // Exact location inside the container:
             // container/Ext Customer  BCFS Published Documents/document.pdf
             string blobName =
-                $"Ext Customer  BCFS Published Documents/{fileName}";
+                $"ext-customer-bcfs-published-documents/{fileName}";
 
             var serviceUri = new Uri(
                 $"https://{storageAccountName}.blob.core.windows.net"
