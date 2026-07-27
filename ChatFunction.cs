@@ -218,7 +218,7 @@ public class ChatFunction
                 QueryType = SearchQueryType.Semantic,
                 SemanticSearch = new SemanticSearchOptions
                 {
-                    SemanticConfigurationName = "bcfs-manual-semantic-configuration"
+                    SemanticConfigurationName = "bcfs-manuals-semantic-configuration"
                 }
             };
 
