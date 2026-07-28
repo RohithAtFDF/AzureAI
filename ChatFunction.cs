@@ -315,7 +315,7 @@ public class ChatFunction
                         sources.Add(new
                         {
                             title = title,
-                            path = path,
+                            url = path,
                             pageNumber = pageNumber,
                             snippet = chunk.Length > 200
                                 ? chunk.Substring(0, 200)
