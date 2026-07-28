@@ -299,6 +299,19 @@ public class ChatFunction
                     int pageNumber =
                         ExtractPageNumber(chunk) ?? 1;
 
+
+                    _logger.LogInformation(
+                        "Citation source: Title={Title}, ContentPath={ContentPath}, PageNumber={PageNumber}",
+                        title,
+                        string.IsNullOrWhiteSpace(path) ? "<EMPTY>" : path,
+                        pageNumber);
+                    if (string.IsNullOrWhiteSpace(path))
+                    {
+                        _logger.LogWarning(
+                            "PDF URL missing because content_path is empty. Title={Title}",
+                            title);
+                    }
+
                     /*
                     * Only add the first/highest-ranked chunk
                     * from each unique PDF as a citation button.
