@@ -290,27 +290,22 @@ public class ChatFunction
                             : "Document";
 
                     string path =
-                        result.Document.TryGetValue(
-                            "content_path",
-                            out var p)
-                            ? p?.ToString() ?? ""
-                            : "";
+                    result.Document.TryGetValue(
+                        "content_path",
+                        out var p)
+                        ? p?.ToString() ?? ""
+                        : "";
+
+                    path = path
+                        .Trim()
+                        .Trim('"', '\'');
 
                     int pageNumber =
                         ExtractPageNumber(chunk) ?? 1;
 
-
                     _logger.LogInformation(
-                        "Citation source: Title={Title}, ContentPath={ContentPath}, PageNumber={PageNumber}",
-                        title,
-                        string.IsNullOrWhiteSpace(path) ? "<EMPTY>" : path,
-                        pageNumber);
-                    if (string.IsNullOrWhiteSpace(path))
-                    {
-                        _logger.LogWarning(
-                            "PDF URL missing because content_path is empty. Title={Title}",
-                            title);
-                    }
+                        "PDF citation URL after cleanup: {PdfUrl}",
+                        path);
 
                     /*
                     * Only add the first/highest-ranked chunk
