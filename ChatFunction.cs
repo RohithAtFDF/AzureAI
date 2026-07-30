@@ -38,7 +38,7 @@ public class ChatFunction
     private readonly ILogger _logger;
 
     private const string AgentEndpoint =
-        "https://rr0076-0257-resource.services.ai.azure.com/api/projects/rr0076-0257";
+        "https://bcfs-guide-chatbot-resource.services.ai.azure.com/api/projects/bcfs-guide-chatbot";
 
     public ChatFunction(ILoggerFactory loggerFactory)
     {
@@ -46,10 +46,10 @@ public class ChatFunction
     }
 
     private const string AnswerAgentName = "BCFS-Agent";
-    private const string AnswerAgentVersion = "10";
+    private const string AnswerAgentVersion = "3";
 
     private const string RouterAgentName = "BCFS-Query-Agent";
-    private const string RouterAgentVersion = "3";
+    private const string RouterAgentVersion = "2";
 
     [Function("chat")]
     public async Task<HttpResponseData> Run(
