@@ -32,6 +32,9 @@ public class RecentQuestions
             }
         }
 
+        var response = req.CreateResponse(HttpStatusCode.OK);
+        
+
         await response.WriteAsJsonAsync(new
         {
             count = questions.Count,
