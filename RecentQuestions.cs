@@ -21,6 +21,7 @@ public class RecentQuestions
         HttpRequestData req)
     {
         var user = AuthUserExtractor.GetUser(req);
+        var questions = new List<object>();
 
        await foreach (var entity in _tableClient.QueryAsync<TableEntity>())
         {
@@ -41,14 +42,18 @@ public class RecentQuestions
                 });
             }
         }
+        var latest = questions
+            .OrderByDescending(x => ((dynamic)x).Timestamp)
+            .Take(3)
+            .ToList();
 
         var response = req.CreateResponse(HttpStatusCode.OK);
 
 
         await response.WriteAsJsonAsync(new
         {
-            count = questions.Count,
-            queries = questions.Take(10)
+            count = latest.Count,
+            queries = latest
         });
 
         return response;
