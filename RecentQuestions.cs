@@ -1,38 +1,56 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.Azure.WebJobs;
+using Microsoft.Azure.WebJobs.Extensions.Http;
+using Microsoft.AspNetCore.Http;
+using Azure.Data.Tables;
+
 public class RecentQuestions
 {
-    [Function("RecentQuestions")]
-    public async Task<HttpResponseData> GetRecentQuestions(
-        [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "recent-questions")]
-        HttpRequestData req)
+    private readonly TableServiceClient _tableServiceClient;
+
+    public RecentQuestions(TableServiceClient tableServiceClient)
+    {
+        _tableServiceClient = tableServiceClient;
+    }
+
+    [FunctionName("RecentQuestions")]
+    public async Task<IActionResult> Run(
+        [HttpTrigger(
+            AuthorizationLevel.Anonymous,
+            "get",
+            Route = "recent-questions")]
+        HttpRequest req)
     {
         var user = AuthUserExtractor.GetUser(req);
 
-        var tableClient = _tableServiceClient.GetTableClient("ChatFeedback");
+        var tableClient =
+            _tableServiceClient.GetTableClient("ChatFeedback");
 
         var questions = new List<string>();
 
-        await foreach (var entity in tableClient.QueryAsync<TableEntity>(
-            e => e["Email"].ToString() == user.Email))
+        await foreach (var entity in tableClient.QueryAsync<TableEntity>())
         {
-            if (entity.TryGetValue("Question", out var question))
+            if (
+                entity.TryGetValue("Email", out var emailObj) &&
+                emailObj?.ToString()
+                    ?.Equals(user.Email, StringComparison.OrdinalIgnoreCase) == true &&
+                entity.TryGetValue("Question", out var questionObj)
+            )
             {
-                questions.Add(question?.ToString());
+                questions.Add(questionObj?.ToString() ?? "");
             }
         }
 
         var latest = questions
+            .Where(q => !string.IsNullOrWhiteSpace(q))
             .Distinct()
             .TakeLast(10)
             .Reverse()
             .ToList();
 
-        var response = req.CreateResponse(HttpStatusCode.OK);
-
-        await response.WriteAsJsonAsync(new
+        return new OkObjectResult(new
         {
             queries = latest
         });
-
-        return response;
     }
 }
