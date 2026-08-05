@@ -52,6 +52,7 @@ public class RecentQuestions
 
         await response.WriteAsJsonAsync(new
         {
+            Email = user.Email,
             count = latest.Count,
             queries = latest
         });
