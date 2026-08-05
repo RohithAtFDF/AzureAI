@@ -21,15 +21,16 @@ public class RecentQuestions
         HttpRequestData req)
     {
         var user = AuthUserExtractor.GetUser(req);
+        string userEmail = user?.Email ?? string.Empty;
         var questions = new List<object>();
 
-       await foreach (var entity in _tableClient.QueryAsync<TableEntity>())
+        await foreach (var entity in _tableClient.QueryAsync<TableEntity>())
         {
             if (
                 entity.TryGetValue("Email", out var emailObj) &&
                 string.Equals(
                     emailObj?.ToString(),
-                    user.Email,
+                    userEmail,
                     StringComparison.OrdinalIgnoreCase
                 ) &&
                 entity.TryGetValue("Question", out var questionObj)
@@ -42,6 +43,7 @@ public class RecentQuestions
                 });
             }
         }
+
         var latest = questions
             .OrderByDescending(x => ((dynamic)x).Timestamp)
             .Take(3)
@@ -49,10 +51,9 @@ public class RecentQuestions
 
         var response = req.CreateResponse(HttpStatusCode.OK);
 
-
         await response.WriteAsJsonAsync(new
         {
-            Email = user.Email,
+            Email = userEmail,
             count = latest.Count,
             queries = latest
         });
