@@ -21,6 +21,9 @@ public class RecentQuestions
         HttpRequestData req)
     {
         var user = AuthUserExtractor.GetUser(req);
+        //output user info to console for debugging
+        console.WriteLine($"User: {user?.Email}, Name: {user?.Name}, Id: {user?.Id}");
+
         var questions = new List<object>();
 
        await foreach (var entity in _tableClient.QueryAsync<TableEntity>())
