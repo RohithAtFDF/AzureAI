@@ -22,18 +22,28 @@ public class RecentQuestions
     {
         var user = AuthUserExtractor.GetUser(req);
 
-        var questions = new List<string>();
-
-        await foreach (var entity in _tableClient.QueryAsync<TableEntity>())
+       await foreach (var entity in _tableClient.QueryAsync<TableEntity>())
         {
-            if (entity.TryGetValue("Question", out var question))
+            if (
+                entity.TryGetValue("Email", out var emailObj) &&
+                string.Equals(
+                    emailObj?.ToString(),
+                    user.Email,
+                    StringComparison.OrdinalIgnoreCase
+                ) &&
+                entity.TryGetValue("Question", out var questionObj)
+            )
             {
-                questions.Add(question?.ToString() ?? "");
+                questions.Add(new
+                {
+                    Question = questionObj?.ToString(),
+                    Timestamp = entity.Timestamp
+                });
             }
         }
 
         var response = req.CreateResponse(HttpStatusCode.OK);
-        
+
 
         await response.WriteAsJsonAsync(new
         {
