@@ -27,26 +27,33 @@ public class RecentQuestions
             var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
             return unauthorized;
         }
+        Console.WriteLine(
+            $"Storage: {Environment.GetEnvironmentVariable("AzureWebJobsStorage")}");
 
+        Console.WriteLine(
+            $"Table: ChatFeedback");
+
+            
         var questions = new List<object>();
 
         var filter = $"Email eq '{user.Email}'";
 
         Console.WriteLine($"Filter = {filter}");
 
-        await foreach (var entity in _tableClient.QueryAsync<TableEntity>(filter))
+        int count = 0;
+
+        await foreach (var entity in _tableClient.QueryAsync<TableEntity>())
         {
-            Console.WriteLine("Found entity!");
+            count++;
 
-            Console.WriteLine($"Email: {entity["Email"]}");
-            Console.WriteLine($"Question: {entity["Question"]}");
+            Console.WriteLine(
+                $"PK={entity.PartitionKey}, RK={entity.RowKey}");
 
-            questions.Add(new
-            {
-                Question = entity["Question"]?.ToString(),
-                Timestamp = entity.Timestamp
-            });
+            if (count == 5)
+                break;
         }
+
+        Console.WriteLine($"Entities found: {count}");
 
         var response = req.CreateResponse(HttpStatusCode.OK);
 
