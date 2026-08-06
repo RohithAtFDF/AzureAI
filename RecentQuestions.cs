@@ -31,7 +31,7 @@ public class RecentQuestions
         var questions = new List<object>();
 
         await foreach (var entity in _tableClient.QueryAsync<TableEntity>(
-            e => e.PartitionKey == user.Email))
+            filter: $"Email eq '{user.Email.Replace("'", "''")}'"))
         {
             if (entity.TryGetValue("Question", out var questionObj))
             {
