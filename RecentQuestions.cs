@@ -33,6 +33,9 @@ public class RecentQuestions
         await foreach (var entity in _tableClient.QueryAsync<TableEntity>(
             filter: $"Email eq '{user.Email.Replace("'", "''")}'"))
         {
+            Console.WriteLine($"Retrieved entity: {entity.RowKey}, Timestamp: {entity.Timestamp}");
+            //print questions 
+            Console.WriteLine($"Question: {entity.GetString("Question")}");
             if (entity.TryGetValue("Question", out var questionObj))
             {
                 questions.Add(new
