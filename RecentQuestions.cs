@@ -21,23 +21,19 @@ public class RecentQuestions
         HttpRequestData req)
     {
         var user = AuthUserExtractor.GetUser(req);
-        //output user info to console for debugging
-        Console.WriteLine("this is coming from recetnquestions.cs");
-        Console.WriteLine($"User: {user?.Email}, Name: {user?.UserName}");
+
+        if (user == null || string.IsNullOrWhiteSpace(user.Email))
+        {
+            var unauthorized = req.CreateResponse(HttpStatusCode.Unauthorized);
+            return unauthorized;
+        }
 
         var questions = new List<object>();
 
-       await foreach (var entity in _tableClient.QueryAsync<TableEntity>())
+        await foreach (var entity in _tableClient.QueryAsync<TableEntity>(
+            e => e.PartitionKey == user.Email))
         {
-            if (
-                entity.TryGetValue("Email", out var emailObj) &&
-                string.Equals(
-                    emailObj?.ToString(),
-                    user.Email,
-                    StringComparison.OrdinalIgnoreCase
-                ) &&
-                entity.TryGetValue("Question", out var questionObj)
-            )
+            if (entity.TryGetValue("Question", out var questionObj))
             {
                 questions.Add(new
                 {
@@ -46,19 +42,14 @@ public class RecentQuestions
                 });
             }
         }
-        var latest = questions
-            .OrderByDescending(x => ((dynamic)x).Timestamp)
-            .Take(3)
-            .ToList();
 
         var response = req.CreateResponse(HttpStatusCode.OK);
-
 
         await response.WriteAsJsonAsync(new
         {
             Email = user.Email,
-            count = latest.Count,
-            queries = latest
+            Count = questions.Count,
+            Queries = questions
         });
 
         return response;
