@@ -30,20 +30,22 @@ public class RecentQuestions
 
         var questions = new List<object>();
 
-        await foreach (var entity in _tableClient.QueryAsync<TableEntity>(
-            filter: $"Email eq '{user.Email.Replace("'", "''")}'"))
+        var filter = $"Email eq '{user.Email}'";
+
+        Console.WriteLine($"Filter = {filter}");
+
+        await foreach (var entity in _tableClient.QueryAsync<TableEntity>(filter))
         {
-            Console.WriteLine($"Retrieved entity: {entity.RowKey}, Timestamp: {entity.Timestamp}");
-            //print questions 
-            Console.WriteLine($"Question: {entity.GetString("Question")}");
-            if (entity.TryGetValue("Question", out var questionObj))
+            Console.WriteLine("Found entity!");
+
+            Console.WriteLine($"Email: {entity["Email"]}");
+            Console.WriteLine($"Question: {entity["Question"]}");
+
+            questions.Add(new
             {
-                questions.Add(new
-                {
-                    Question = questionObj?.ToString(),
-                    Timestamp = entity.Timestamp
-                });
-            }
+                Question = entity["Question"]?.ToString(),
+                Timestamp = entity.Timestamp
+            });
         }
 
         var response = req.CreateResponse(HttpStatusCode.OK);
