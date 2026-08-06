@@ -58,18 +58,17 @@ public class RecentQuestions
 
         try
         {
-            await foreach (var entity in _tableClient.QueryAsync<ChatFeedbackEntity>())
+                    await foreach (var entity in _tableClient.QueryAsync<TableEntity>())
+        {
+            Console.WriteLine("ENTITY FOUND");
+
+            foreach (var property in entity)
             {
-                allQuestions.Add(new
-                {
-                    entity.Question,
-                    entity.Answer,
-                    entity.CreatedUtc,
-                    entity.Program,
-                    entity.FeedbackStatus,
-                    entity.Email
-                });
+                Console.WriteLine($"{property.Key} = {property.Value}");
             }
+
+            allQuestions.Add(entity);
+        }
         }
         catch (Exception ex)
         {
