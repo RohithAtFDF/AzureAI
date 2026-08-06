@@ -22,7 +22,7 @@ public class RecentQuestions
     {
         var user = AuthUserExtractor.GetUser(req);
         //output user info to console for debugging
-        console.WriteLine($"User: {user?.Email}, Name: {user?.Name}, Id: {user?.Id}");
+        Console.WriteLine($"User: {user?.Email}, Name: {user?.Name}");
 
         var questions = new List<object>();
 
