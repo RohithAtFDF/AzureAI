@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using Azure.Data.Tables;
 using Microsoft.Azure.Functions.Worker;
@@ -50,41 +52,34 @@ public class RecentQuestions
             Route = "recent-questions")]
         HttpRequestData req)
     {
-        var user = AuthUserExtractor.GetUser(req);
-
-        if (user == null || string.IsNullOrWhiteSpace(user.Email))
-        {
-            return req.CreateResponse(HttpStatusCode.Unauthorized);
-        }
-
-        Console.WriteLine($"User Email = {user.Email}");
-
-        int count = 0;
-
-        await foreach (var entity in _tableClient.QueryAsync<TableEntity>())
-        {
-            count++;
-
-            Console.WriteLine(
-                $"PK={entity.PartitionKey}, RK={entity.RowKey}");
-
-            if (entity.TryGetValue("Email", out var email))
-            {
-                Console.WriteLine($"Email={email}");
-            }
-
-            if (count == 5)
-                break;
-        }
-
-        Console.WriteLine($"Entities found = {count}");
-
         var response = req.CreateResponse(HttpStatusCode.OK);
+
+        var allQuestions = new List<object>();
+
+        try
+        {
+            await foreach (var entity in _tableClient.QueryAsync<ChatFeedbackEntity>())
+            {
+                allQuestions.Add(new
+                {
+                    entity.Question,
+                    entity.Answer,
+                    entity.CreatedUtc,
+                    entity.Program,
+                    entity.FeedbackStatus,
+                    entity.Email
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Unable to read feedback table: {ex.Message}");
+        }
 
         await response.WriteAsJsonAsync(new
         {
-            User = user.Email,
-            Count = count
+            Count = allQuestions.Count,
+            Questions = allQuestions
         });
 
         return response;
