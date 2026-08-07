@@ -65,6 +65,9 @@ public class RecentQuestions
             foreach (var property in entity)
             {
                 Console.WriteLine($"{property.Key} = {property.Value}");
+                //output some queries
+                // ...
+                
             }
 
             allQuestions.Add(entity);
