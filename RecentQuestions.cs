@@ -58,7 +58,6 @@ public class RecentQuestions
         var authIdentity = AuthUserExtractor.GetUser(req);
 
         var email = authIdentity?.Email ?? string.Empty;
-        Console.WriteLine($"Email retrieved from AuthUserExtractor: {email}");
 
         try
         {
@@ -75,6 +74,8 @@ public class RecentQuestions
                             ? createdUtc
                             : null
                     });
+                    Console.WriteLine($"Retrieved question: {question}");
+                    Console.WriteLine($"CreatedUtc: {createdUtc}");
                 }
             }
         }
