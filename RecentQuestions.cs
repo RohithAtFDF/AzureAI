@@ -58,18 +58,21 @@ public class RecentQuestions
         var authIdentity = AuthUserExtractor.GetUser(req);
 
         var email = authIdentity?.Email ?? string.Empty;
+        Console.WriteLine($"Email retrieved from autheuserextractpr: {email}");
 
         try
         {
                     await foreach (var entity in _tableClient.QueryAsync<TableEntity>())
         {
             Console.WriteLine("ENTITY FOUND");
+        var filter = $"Email eq '{email}'";
 
-            foreach (var property in entity)
+        await foreach (var entity in _tableClient.QueryAsync<TableEntity>(filter))
             {
-                Console.WriteLine($"{property.Key} = {property.Value}");
-                //output some queries
-                // ...
+                if (entity.TryGetValue("Question", out var question))
+                {
+                    Console.WriteLine($"Question = {question}");
+}
 
             }
 
