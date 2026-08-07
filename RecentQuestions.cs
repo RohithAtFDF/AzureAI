@@ -68,9 +68,13 @@ public class RecentQuestions
             {
                 if (entity.TryGetValue("Question", out var question))
                 {
-                    Console.WriteLine($"Question = {question}");
-
-                    allQuestions.Add(question);
+                    allQuestions.Add(new
+                    {
+                        Question = question?.ToString(),
+                        CreatedUtc = entity.TryGetValue("CreatedUtc", out var createdUtc)
+                            ? createdUtc
+                            : null
+                    });
                 }
             }
         }
