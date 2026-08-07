@@ -59,8 +59,6 @@ public class RecentQuestions
 
         var email = authIdentity?.Email ?? string.Empty;
 
-        _logger.LogInformation("Current user email: {Email}", email);
-
         try
         {
                     await foreach (var entity in _tableClient.QueryAsync<TableEntity>())
