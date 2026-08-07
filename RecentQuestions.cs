@@ -58,6 +58,7 @@ public class RecentQuestions
         var authIdentity = AuthUserExtractor.GetUser(req);
 
         var email = authIdentity?.Email ?? string.Empty;
+        var recentQuestions = new List<dynamic>();
 
         try
         {
@@ -77,7 +78,7 @@ public class RecentQuestions
                 }
             }
 
-            var recentQuestions = allQuestions
+            recentQuestions = allQuestions
                 .OrderByDescending(q => q.CreatedUtc)
                 .Take(3)
                 .ToList();
