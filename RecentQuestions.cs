@@ -83,12 +83,6 @@ public class RecentQuestions
                 .Take(3)
                 .ToList();
 
-            foreach (var q in recentQuestions)
-                {
-                    Console.WriteLine($"Question: {q.Question}");
-                    Console.WriteLine($"CreatedUtc: {q.CreatedUtc}");
-                }
-
         }
         catch (Exception ex)
         {
