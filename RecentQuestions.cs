@@ -54,7 +54,7 @@ public class RecentQuestions
     {
         var response = req.CreateResponse(HttpStatusCode.OK);
 
-        var allQuestions = new List<object>();
+        var allQuestions = new List<dynamic>();
         var authIdentity = AuthUserExtractor.GetUser(req);
 
         var email = authIdentity?.Email ?? string.Empty;
@@ -74,10 +74,20 @@ public class RecentQuestions
                             ? createdUtc
                             : null
                     });
-                    Console.WriteLine($"Retrieved question: {question}");
-                    Console.WriteLine($"CreatedUtc: {createdUtc}");
                 }
             }
+
+            var recentQuestions = allQuestions
+                .OrderByDescending(q => q.CreatedUtc)
+                .Take(3)
+                .ToList();
+
+            foreach (var q in recentQuestions)
+                {
+                    Console.WriteLine($"Question: {q.Question}");
+                    Console.WriteLine($"CreatedUtc: {q.CreatedUtc}");
+                }
+
         }
         catch (Exception ex)
         {
@@ -86,8 +96,8 @@ public class RecentQuestions
 
         await response.WriteAsJsonAsync(new
         {
-            Count = allQuestions.Count,
-            Questions = allQuestions,
+            Count = recentQuestions.Count,
+            Questions = recentQuestions,
             Email = email
         });
 
