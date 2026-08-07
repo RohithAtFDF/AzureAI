@@ -66,14 +66,12 @@ public class RecentQuestions
 
             await foreach (var entity in _tableClient.QueryAsync<TableEntity>(filter))
             {
-                Console.WriteLine("ENTITY FOUND");
-
                 if (entity.TryGetValue("Question", out var question))
                 {
                     Console.WriteLine($"Question = {question}");
-                }
 
-                allQuestions.Add(entity);
+                    allQuestions.Add(question);
+                }
             }
         }
         catch (Exception ex)
