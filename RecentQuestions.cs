@@ -55,6 +55,11 @@ public class RecentQuestions
         var response = req.CreateResponse(HttpStatusCode.OK);
 
         var allQuestions = new List<object>();
+        var authIdentity = AuthUserExtractor.GetUser(req);
+
+        var email = authIdentity?.Email ?? string.Empty;
+
+        _logger.LogInformation("Current user email: {Email}", email);
 
         try
         {
@@ -67,7 +72,7 @@ public class RecentQuestions
                 Console.WriteLine($"{property.Key} = {property.Value}");
                 //output some queries
                 // ...
-                
+
             }
 
             allQuestions.Add(entity);
@@ -81,7 +86,8 @@ public class RecentQuestions
         await response.WriteAsJsonAsync(new
         {
             Count = allQuestions.Count,
-            Questions = allQuestions
+            Questions = allQuestions,
+            Email = email
         });
 
         return response;
