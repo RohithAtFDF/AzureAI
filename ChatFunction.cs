@@ -46,7 +46,7 @@ public class ChatFunction
     }
 
     private const string AnswerAgentName = "BCFS-Agent";
-    private const string AnswerAgentVersion = "3";
+    private const string AnswerAgentVersion = "4";
 
     private const string RouterAgentName = "BCFS-Query-Agent";
     private const string RouterAgentVersion = "2";
